@@ -1,0 +1,32 @@
+{
+  "schemaVersion": 1,
+  "id": "rcc-kromer",
+  "version": "${version}",
+  "name": "rcc-kromer",
+  "description": "Kromer integration for RCC",
+  "authors": [],
+  "contact": {},
+  "license": "MIT",
+  "icon": "assets/rcc-kromer/icon.png",
+  "environment": "*",
+  "entrypoints": {
+    "client": [
+      "cc.reconnected.kromer.client.mainClient"
+    ],
+    "main": [
+      "cc.reconnected.kromer.Main"
+    ]
+  },
+  "mixins": [
+    "rcc-kromer.mixins.json",
+    {
+      "config": "rcc-kromer.client.mixins.json",
+      "environment": "client"
+    }
+  ],
+  "depends": {
+    "fabricloader": ">=${loader_version}",
+    "fabric": "*",
+    "minecraft": "${minecraft_version}"
+  }
+}
