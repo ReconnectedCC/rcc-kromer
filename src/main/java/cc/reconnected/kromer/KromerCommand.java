@@ -1,14 +1,24 @@
 package cc.reconnected.kromer;
 
+import cc.reconnected.kromer.responses.WalletCreateResponse;
+import cc.reconnected.kromer.responses.WalletResponse;
+import com.google.gson.Gson;
 import com.mojang.brigadier.CommandDispatcher;
 
 import com.mojang.brigadier.arguments.FloatArgumentType;
 import com.mojang.brigadier.arguments.StringArgumentType;
+import net.luckperms.api.LuckPermsProvider;
+import net.luckperms.api.node.types.MetaNode;
 import net.minecraft.command.CommandRegistryAccess;
 import net.minecraft.command.argument.EntityArgumentType;
 import net.minecraft.server.command.CommandManager;
 import net.minecraft.server.command.ServerCommandSource;
 import net.minecraft.text.Text;
+
+import java.net.URI;
+import java.net.URISyntaxException;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
 
 import static net.minecraft.server.command.CommandManager.argument;
 import static net.minecraft.server.command.CommandManager.literal;
@@ -38,6 +48,37 @@ public class KromerCommand {
                                     })
                             )
             );
+
+            dispatcher.register(literal("balance").executes(ctx -> {
+                var source = ctx.getSource();
+                var player = source.getPlayer();
+                assert player != null;
+
+                var manager = Main.userManager;
+                var user = manager.getUser(player.getUuid());
+                assert user != null;
+
+                String walletAddress = user.getCachedData().getMetaData().getMetaValue("wallet_address"); // My hated
+
+
+                var url = String.format(Main.kromerURL + "api/v1/wallet/%s", walletAddress);
+                HttpRequest request;
+                try {
+                    request = HttpRequest.newBuilder().uri(new URI(url)).GET().build();
+                } catch (URISyntaxException e) {
+                    throw new RuntimeException(e);
+                }
+
+                Main.httpclient.sendAsync(request, HttpResponse.BodyHandlers.ofString()).whenComplete((response, throwable) -> {
+                    Main.nuhuh(response, throwable);
+                    WalletResponse walletResponse = new Gson().fromJson(response.body(), WalletResponse.class);
+                    var feedback = String.format("Your balance is: %f", walletResponse.balance);
+                    source.sendFeedback(() -> Text.literal(feedback), false);
+                }).join();
+
+                return 1;
+            }));
+
             dispatcher.register(literal("pay")
                     .then(argument("player", StringArgumentType.word())
                             .then(argument("amount", FloatArgumentType.floatArg(0f))

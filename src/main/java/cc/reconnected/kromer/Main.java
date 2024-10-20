@@ -1,6 +1,6 @@
 package cc.reconnected.kromer;
 
-import cc.reconnected.kromer.RccKromerConfig;
+import cc.reconnected.kromer.responses.WalletCreateResponse;
 import com.google.gson.Gson;
 import com.google.gson.JsonObject;
 import net.fabricmc.api.ModInitializer;
@@ -31,7 +31,7 @@ public class Main implements ModInitializer {
     public static GroupManager groupManager;
     public static String kromerURL;
     public static RccKromerConfig config;
-    public static HttpClient hotclient = HttpClient.newHttpClient();
+    public static HttpClient httpclient = HttpClient.newHttpClient();
     public void onInitialize() {
         ServerLifecycleEvents.SERVER_STARTED.register(server -> onStartServer());
         CommandRegistrationCallback.EVENT.register(KromerCommand::register);
@@ -47,7 +47,6 @@ public class Main implements ModInitializer {
 
     public static void firstLogin(UserFirstLoginEvent userFirstLoginEvent) {
         firstLogin(userFirstLoginEvent.getUsername(), userFirstLoginEvent.getUniqueId());
-
     }
     public static void firstLogin(String username, UUID uuid) {
         JsonObject playerObject = new JsonObject();
@@ -59,9 +58,9 @@ public class Main implements ModInitializer {
         } catch (URISyntaxException e) {
             throw new RuntimeException(e);
         }
-        hotclient.sendAsync(request, HttpResponse.BodyHandlers.ofString()).whenComplete((response, throwable) -> {
+        httpclient.sendAsync(request, HttpResponse.BodyHandlers.ofString()).whenComplete((response, throwable) -> {
             nuhuh(response, throwable);
-            WalletResponse walletResponse = new Gson().fromJson(response.body(), WalletResponse.class);
+            WalletCreateResponse walletResponse = new Gson().fromJson(response.body(), WalletCreateResponse.class);
             MetaNode node = MetaNode.builder("wallet_address", walletResponse.address).build();
             MetaNode node2 = MetaNode.builder("wallet_password", walletResponse.password).build();
             luckPerms.getUserManager().modifyUser(uuid, user -> {
@@ -83,11 +82,11 @@ public class Main implements ModInitializer {
         } catch (URISyntaxException e) {
             throw new RuntimeException(e);
         }
-        hotclient.sendAsync(request, HttpResponse.BodyHandlers.ofString()).whenComplete(Main::nuhuh).join();
+        httpclient.sendAsync(request, HttpResponse.BodyHandlers.ofString()).whenComplete(Main::nuhuh).join();
         return true;
     }
 
-    private static void nuhuh(HttpResponse<String> response, Throwable throwable) {
+    public static void nuhuh(HttpResponse<String> response, Throwable throwable) {
         if (throwable != null) {
             LOGGER.error("Failed to send player data to Kromer", throwable);
             return;
