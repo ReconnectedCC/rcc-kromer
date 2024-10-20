@@ -1,5 +1,6 @@
 package cc.reconnected.kromer;
 
+import cc.reconnected.kromer.commands.BalanceCommand;
 import cc.reconnected.kromer.responses.WalletCreateResponse;
 import com.google.gson.Gson;
 import com.google.gson.JsonObject;
@@ -34,7 +35,10 @@ public class Main implements ModInitializer {
     public static HttpClient httpclient = HttpClient.newHttpClient();
     public void onInitialize() {
         ServerLifecycleEvents.SERVER_STARTED.register(server -> onStartServer());
+
         CommandRegistrationCallback.EVENT.register(KromerCommand::register);
+        CommandRegistrationCallback.EVENT.register(BalanceCommand::register);
+
         config = RccKromerConfig.createAndLoad();
     }
 

@@ -49,36 +49,6 @@ public class KromerCommand {
                             )
             );
 
-            dispatcher.register(literal("balance").executes(ctx -> {
-                var source = ctx.getSource();
-                var player = source.getPlayer();
-                assert player != null;
-
-                var manager = Main.userManager;
-                var user = manager.getUser(player.getUuid());
-                assert user != null;
-
-                String walletAddress = user.getCachedData().getMetaData().getMetaValue("wallet_address"); // My hated
-
-
-                var url = String.format(Main.kromerURL + "api/v1/wallet/%s", walletAddress);
-                HttpRequest request;
-                try {
-                    request = HttpRequest.newBuilder().uri(new URI(url)).GET().build();
-                } catch (URISyntaxException e) {
-                    throw new RuntimeException(e);
-                }
-
-                Main.httpclient.sendAsync(request, HttpResponse.BodyHandlers.ofString()).whenComplete((response, throwable) -> {
-                    Main.nuhuh(response, throwable);
-                    WalletResponse walletResponse = new Gson().fromJson(response.body(), WalletResponse.class);
-                    var feedback = String.format("Your balance is: %f", walletResponse.balance);
-                    source.sendFeedback(() -> Text.literal(feedback), false);
-                }).join();
-
-                return 1;
-            }));
-
             dispatcher.register(literal("pay")
                     .then(argument("player", StringArgumentType.word())
                             .then(argument("amount", FloatArgumentType.floatArg(0f))
