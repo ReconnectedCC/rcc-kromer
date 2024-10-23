@@ -1,6 +1,8 @@
 package cc.reconnected.kromer;
 
 import cc.reconnected.kromer.commands.BalanceCommand;
+import cc.reconnected.kromer.commands.KromerCommand;
+import cc.reconnected.kromer.commands.PayCommand;
 import cc.reconnected.kromer.responses.WalletCreateResponse;
 import com.google.gson.Gson;
 import com.google.gson.JsonObject;
@@ -36,8 +38,9 @@ public class Main implements ModInitializer {
     public void onInitialize() {
         ServerLifecycleEvents.SERVER_STARTED.register(server -> onStartServer());
 
-        CommandRegistrationCallback.EVENT.register(KromerCommand::register);
+        CommandRegistrationCallback.EVENT.register(PayCommand::register);
         CommandRegistrationCallback.EVENT.register(BalanceCommand::register);
+        CommandRegistrationCallback.EVENT.register(KromerCommand::register);
 
         config = RccKromerConfig.createAndLoad();
     }
@@ -74,7 +77,7 @@ public class Main implements ModInitializer {
             generateMoney(uuid, 100);
         }).join();
     }
-    public static boolean generateMoney(UUID uuid, float amount) {
+    public static void generateMoney(UUID uuid, float amount) {
         CachedMetaData playerData = luckPerms.getUserManager().getUser(uuid).getCachedData().getMetaData();
         String walletAddress = playerData.getMetaValue("wallet_address");
         JsonObject moneyGenObject = new JsonObject();
@@ -87,7 +90,6 @@ public class Main implements ModInitializer {
             throw new RuntimeException(e);
         }
         httpclient.sendAsync(request, HttpResponse.BodyHandlers.ofString()).whenComplete(Main::nuhuh).join();
-        return true;
     }
 
     public static void nuhuh(HttpResponse<String> response, Throwable throwable) {
