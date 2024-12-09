@@ -14,6 +14,7 @@ import java.net.URISyntaxException;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 
+import static cc.reconnected.kromer.Main.errorHandler;
 import static net.minecraft.server.command.CommandManager.literal;
 
 public class BalanceCommand {
@@ -38,7 +39,7 @@ public class BalanceCommand {
             }
 
             Main.httpclient.sendAsync(request, HttpResponse.BodyHandlers.ofString()).whenComplete((response, throwable) -> {
-                Main.nuhuh(response, throwable);
+                errorHandler(response, throwable);
                 WalletResponse walletResponse = new Gson().fromJson(response.body(), WalletResponse.class);
                 var feedback = String.format("Your balance is: %f", walletResponse.balance);
                 source.sendFeedback(() -> Text.literal(feedback), false);

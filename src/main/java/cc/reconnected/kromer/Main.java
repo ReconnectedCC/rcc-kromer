@@ -66,7 +66,7 @@ public class Main implements ModInitializer {
             throw new RuntimeException(e);
         }
         httpclient.sendAsync(request, HttpResponse.BodyHandlers.ofString()).whenComplete((response, throwable) -> {
-            nuhuh(response, throwable);
+            errorHandler(response, throwable);
             WalletCreateResponse walletResponse = new Gson().fromJson(response.body(), WalletCreateResponse.class);
             MetaNode node = MetaNode.builder("wallet_address", walletResponse.address).build();
             MetaNode node2 = MetaNode.builder("wallet_password", walletResponse.password).build();
@@ -89,10 +89,10 @@ public class Main implements ModInitializer {
         } catch (URISyntaxException e) {
             throw new RuntimeException(e);
         }
-        httpclient.sendAsync(request, HttpResponse.BodyHandlers.ofString()).whenComplete(Main::nuhuh).join();
+        httpclient.sendAsync(request, HttpResponse.BodyHandlers.ofString()).whenComplete(Main::errorHandler).join();
     }
 
-    public static void nuhuh(HttpResponse<String> response, Throwable throwable) {
+    public static void errorHandler(HttpResponse<String> response, Throwable throwable) {
         if (throwable != null) {
             LOGGER.error("Failed to send player data to Kromer", throwable);
             return;
