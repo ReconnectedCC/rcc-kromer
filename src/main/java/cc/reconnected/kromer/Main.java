@@ -65,6 +65,7 @@ public class Main implements ModInitializer {
         } catch (URISyntaxException e) {
             throw new RuntimeException(e);
         }
+    
         httpclient.sendAsync(request, HttpResponse.BodyHandlers.ofString()).whenComplete((response, throwable) -> {
             errorHandler(response, throwable);
             WalletCreateResponse walletResponse = new Gson().fromJson(response.body(), WalletCreateResponse.class);
