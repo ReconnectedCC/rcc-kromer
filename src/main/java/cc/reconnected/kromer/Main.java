@@ -6,6 +6,8 @@ import cc.reconnected.kromer.commands.PayCommand;
 import cc.reconnected.kromer.responses.WalletCreateResponse;
 import com.google.gson.Gson;
 import com.google.gson.JsonObject;
+
+import net.fabricmc.api.DedicatedServerModInitializer;
 import net.fabricmc.api.ModInitializer;
 import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
@@ -27,7 +29,7 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.util.UUID;
 
-public class Main implements ModInitializer {
+public class Main implements DedicatedServerModInitializer {
     static Logger LOGGER = LoggerFactory.getLogger("rcc-kromer");
     public static LuckPerms luckPerms;
     public static UserManager userManager;
@@ -35,7 +37,7 @@ public class Main implements ModInitializer {
     public static String kromerURL;
     public static RccKromerConfig config;
     public static HttpClient httpclient = HttpClient.newHttpClient();
-    public void onInitialize() {
+    public void onInitializeServer() {
         ServerLifecycleEvents.SERVER_STARTED.register(server -> onStartServer());
 
         CommandRegistrationCallback.EVENT.register(PayCommand::register);
@@ -57,11 +59,11 @@ public class Main implements ModInitializer {
     }
     public static void firstLogin(String username, UUID uuid) {
         JsonObject playerObject = new JsonObject();
-        playerObject.addProperty("username", username);
-        playerObject.addProperty("uuid", uuid.toString());
+        playerObject.addProperty("name", username);
+        playerObject.addProperty("mc_uuid", uuid.toString());
         HttpRequest request;
         try {
-            request = HttpRequest.newBuilder().uri(new URI(config.KromerURL()+"api/_internal/wallet/create")).headers("Kromer-Key", config.KromerKey(), "Content-Type", "application/json").POST(HttpRequest.BodyPublishers.ofString(playerObject.toString())).build();
+            request = HttpRequest.newBuilder().uri(new URI(config.KromerURL()+"api/v1/_internal/wallet/create")).headers("Kromer-Key", config.KromerKey(), "Content-Type", "application/json").POST(HttpRequest.BodyPublishers.ofString(playerObject.toString())).build();
         } catch (URISyntaxException e) {
             throw new RuntimeException(e);
         }
@@ -86,7 +88,7 @@ public class Main implements ModInitializer {
         moneyGenObject.addProperty("amount", amount);
         HttpRequest request;
         try {
-            request = HttpRequest.newBuilder().uri(new URI(kromerURL + "api/_internal/give-money")).POST(HttpRequest.BodyPublishers.ofString(moneyGenObject.toString())).build();
+            request = HttpRequest.newBuilder().uri(new URI(kromerURL + "api/v1/_internal/give-money")).POST(HttpRequest.BodyPublishers.ofString(moneyGenObject.toString())).build();
         } catch (URISyntaxException e) {
             throw new RuntimeException(e);
         }

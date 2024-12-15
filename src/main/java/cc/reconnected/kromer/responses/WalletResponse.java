@@ -4,6 +4,7 @@ import java.util.Date;
 
 public class WalletResponse {
     public String address;
+    public String id;
     public Float balance;
     public Date created_at;
     public Boolean is_shared;

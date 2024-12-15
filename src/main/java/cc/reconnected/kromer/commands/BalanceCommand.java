@@ -1,6 +1,7 @@
 package cc.reconnected.kromer.commands;
 
 import cc.reconnected.kromer.Main;
+import cc.reconnected.kromer.Util;
 import cc.reconnected.kromer.responses.WalletResponse;
 import com.google.gson.Gson;
 import com.mojang.brigadier.CommandDispatcher;
@@ -30,9 +31,9 @@ public class BalanceCommand {
             var user = manager.getUser(player.getUuid());
             assert user != null;
 
-            String walletAddress = user.getCachedData().getMetaData().getMetaValue("wallet_address"); // My hated
+            String walletAddress = Util.getWalletAddress(user); // My hated
 
-            var url = String.format(Main.kromerURL + "api/v1/wallet/%s", walletAddress);
+            var url = String.format(Main.config.KromerURL() + "api/v1/wallet/%s", walletAddress);
             HttpRequest request;
             try {
                 request = HttpRequest.newBuilder().uri(new URI(url)).GET().build();

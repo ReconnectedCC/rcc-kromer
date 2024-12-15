@@ -27,15 +27,16 @@ import java.net.http.HttpResponse;
 public class KromerCommand {
     public static void register(CommandDispatcher<ServerCommandSource> dispatcher, CommandRegistryAccess registryAccess, CommandManager.RegistrationEnvironment environment) {
         var versionCommand = literal("version").executes(context -> {
-            String modVersion = FabricLoader.getInstance().getAllMods().stream()
-                .filter(jj -> jj.getMetadata().getId() == "rcc-kromer")
-                .map(jj -> jj.getMetadata().getVersion().getFriendlyString())
-                .findFirst()
-                .orElse(null);
+            String modVersion = FabricLoader.getInstance()
+                .getModContainer("rcc-kromer")
+                .get()
+                .getMetadata()
+                .getVersion()
+                .getFriendlyString(); // WHY
 
             HttpRequest request;
             try {
-                request = HttpRequest.newBuilder().uri(new URI(Main.kromerURL + "api/v1/version")).GET().build();
+                request = HttpRequest.newBuilder().uri(new URI(Main.config.KromerURL() + "api/v1/version")).GET().build();
             } catch (URISyntaxException e) {
                 throw new RuntimeException(e);
             }

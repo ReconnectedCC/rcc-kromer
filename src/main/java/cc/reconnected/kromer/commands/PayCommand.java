@@ -35,7 +35,7 @@ import java.net.http.HttpResponse;
 public class PayCommand {
     public static void register(CommandDispatcher<ServerCommandSource> dispatcher, CommandRegistryAccess registryAccess, CommandManager.RegistrationEnvironment environment) {
         var rootCommand = literal("pay")
-                .then(argument("player", StringArgumentType.word()))
+                .then(argument("player", StringArgumentType.word())
                 .then(argument("amount", FloatArgumentType.floatArg()))
                 .executes(context -> {
                     return executePay(context);
@@ -44,7 +44,7 @@ public class PayCommand {
                 .then(argument("metadata", StringArgumentType.greedyString()))
                 .executes(context -> {
                     return executePay(context);
-                });
+                }));
 
         dispatcher.register(rootCommand);
     }
