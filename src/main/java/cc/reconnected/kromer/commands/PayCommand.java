@@ -22,6 +22,7 @@ import net.minecraft.server.command.CommandManager;
 import net.minecraft.server.command.ServerCommandSource;
 import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.text.Text;
+import net.minecraft.util.Formatting;
 
 import static net.minecraft.server.command.CommandManager.argument;
 import static net.minecraft.server.command.CommandManager.literal;
@@ -60,7 +61,7 @@ public class PayCommand {
         Math.round(amount);
         //Check if player is online
         if (context.getSource().getServer().getPlayerManager().getPlayer(playerName) == null || context.getSource().getServer().getPlayerManager().getPlayer(playerName).getUuid() == null) {
-            context.getSource().sendFeedback(() -> Text.literal("Player is offline"), false);
+            context.getSource().sendFeedback(() -> Text.literal("Player is offline").formatted(Formatting.RED), false);
             return 0;
         }
 
@@ -103,25 +104,25 @@ public class PayCommand {
     
         Main.httpclient.sendAsync(request, HttpResponse.BodyHandlers.ofString()).whenComplete((response, throwable) -> {
             if (throwable != null) {
-                context.getSource().sendFeedback(() -> Text.literal("Encountered issue while attempting to create transaction: " + throwable), false);
+                context.getSource().sendFeedback(() -> Text.literal("Encountered issue while attempting to create transaction: " + throwable).formatted(Formatting.RED), false);
                 return;
             }
 
             String body = response.body();
 
             if (body == null) {
-                context.getSource().sendFeedback(() -> Text.literal("Encountered issue while attempting to create transaction: No response body"), false);
+                context.getSource().sendFeedback(() -> Text.literal("Encountered issue while attempting to create transaction: No response body").formatted(Formatting.RED), false);
                 return;
             }
 
             if (response.statusCode() != 200) {
                 ErrorResponse errorResponse = new Gson().fromJson(body, ErrorResponse.class);
-                context.getSource().sendFeedback(() -> Text.literal("Enountered issue while attempting to create transaction (" + errorResponse.message + "): " + errorResponse.description), false);
+                context.getSource().sendFeedback(() -> Text.literal("Enountered issue while attempting to create transaction (" + errorResponse.message + "): " + errorResponse.description).formatted(Formatting.RED), false);
                 return;
             }
 
             TransactionCreateResponse transactionResponse = new Gson().fromJson(body, TransactionCreateResponse.class);
-            context.getSource().sendFeedback(() -> Text.literal("Sent " + amount + " kromer to " + playerName + "!"), false);
+            context.getSource().sendFeedback(() -> Text.literal("Sent " + amount + " kromer to " + playerName + "!").formatted(Formatting.GREEN), false);
         }).join();
         return 1;
     }

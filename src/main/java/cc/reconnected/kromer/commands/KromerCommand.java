@@ -7,6 +7,7 @@ import net.minecraft.command.argument.EntityArgumentType;
 import net.minecraft.server.command.CommandManager;
 import net.minecraft.server.command.ServerCommandSource;
 import net.minecraft.text.Text;
+import net.minecraft.util.Formatting;
 
 import static net.minecraft.server.command.CommandManager.argument;
 import static net.minecraft.server.command.CommandManager.literal;
@@ -26,7 +27,7 @@ public class KromerCommand {
                     String playerName = EntityArgumentType.getPlayer(context, "player").getEntityName();
                     //Check if player is online
                     if (context.getSource().getServer().getPlayerManager().getPlayer(playerName) == null || context.getSource().getServer().getPlayerManager().getPlayer(playerName).getUuid() == null) {
-                        context.getSource().sendFeedback(() -> Text.literal("Player is offline"), false);
+                        context.getSource().sendFeedback(() -> Text.literal("Player is offline").formatted(Formatting.RED), false);
                         return 0;
                     }
                     Main.firstLogin(playerName, context.getSource().getServer().getPlayerManager().getPlayer(playerName).getUuid());

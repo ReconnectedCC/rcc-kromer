@@ -8,6 +8,8 @@ import net.minecraft.command.CommandRegistryAccess;
 import net.minecraft.server.command.CommandManager;
 import net.minecraft.server.command.ServerCommandSource;
 import net.minecraft.text.Text;
+import net.minecraft.text.TextColor;
+import net.minecraft.util.Formatting;
 
 import java.net.URI;
 import java.net.URISyntaxException;
@@ -42,7 +44,7 @@ public class BalanceCommand {
                 errorHandler(response, throwable);
                 WalletResponse walletResponse = new Gson().fromJson(response.body(), WalletResponse.class);
                 var feedback = String.format("Your balance is: %f", walletResponse.balance);
-                source.sendFeedback(() -> Text.literal(feedback), false);
+                source.sendFeedback(() -> Text.literal(feedback).formatted(Formatting.GREEN), false);
             }).join();
 
             return 1;
