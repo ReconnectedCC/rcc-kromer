@@ -8,9 +8,10 @@ import com.google.gson.Gson;
 import com.google.gson.JsonObject;
 
 import net.fabricmc.api.DedicatedServerModInitializer;
-import net.fabricmc.api.ModInitializer;
 import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
+import net.fabricmc.fabric.api.entity.event.v1.ServerPlayerEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
+import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents;
 import net.luckperms.api.LuckPerms;
 import net.luckperms.api.LuckPermsProvider;
 import net.luckperms.api.cacheddata.CachedMetaData;
@@ -34,11 +35,15 @@ public class Main implements DedicatedServerModInitializer {
     public static LuckPerms luckPerms;
     public static UserManager userManager;
     public static GroupManager groupManager;
-    public static String kromerURL;
     public static RccKromerConfig config;
     public static HttpClient httpclient = HttpClient.newHttpClient();
     public void onInitializeServer() {
         ServerLifecycleEvents.SERVER_STARTED.register(server -> onStartServer());
+        ServerPlayConnectionEvents.JOIN.register(
+                (a,b,c) -> {
+                    firstLogin(a.player.getEntityName(), a.player.getUuid());
+                }
+        );
 
         CommandRegistrationCallback.EVENT.register(PayCommand::register);
         CommandRegistrationCallback.EVENT.register(BalanceCommand::register);
@@ -51,19 +56,21 @@ public class Main implements DedicatedServerModInitializer {
         luckPerms = LuckPermsProvider.get();
         userManager = luckPerms.getUserManager();
         groupManager = luckPerms.getGroupManager();
-        luckPerms.getEventBus().subscribe(UserFirstLoginEvent.class, Main::firstLogin);
     }
 
-    public static void firstLogin(UserFirstLoginEvent userFirstLoginEvent) {
-        firstLogin(userFirstLoginEvent.getUsername(), userFirstLoginEvent.getUniqueId());
-    }
     public static void firstLogin(String username, UUID uuid) {
+        if(luckPerms.getUserManager().getUser(uuid) != null) {
+            if(luckPerms.getUserManager().getUser(uuid).getCachedData().getMetaData().getMetaValue("wallet_address") != null) {
+                return;
+            }
+        }
+
         JsonObject playerObject = new JsonObject();
         playerObject.addProperty("name", username);
-        playerObject.addProperty("mc_uuid", uuid.toString());
+        playerObject.addProperty("uuid", uuid.toString());
         HttpRequest request;
         try {
-            request = HttpRequest.newBuilder().uri(new URI(config.KromerURL()+"api/v1/_internal/wallet/create")).headers("Kromer-Key", config.KromerKey(), "Content-Type", "application/json").POST(HttpRequest.BodyPublishers.ofString(playerObject.toString())).build();
+            request = HttpRequest.newBuilder().uri(new URI(config.KromerURL()+"api/_internal/wallet/create")).headers("Kromer-Key", config.KromerKey(), "Content-Type", "application/json").POST(HttpRequest.BodyPublishers.ofString(playerObject.toString())).build();
         } catch (URISyntaxException e) {
             throw new RuntimeException(e);
         }
@@ -77,9 +84,11 @@ public class Main implements DedicatedServerModInitializer {
                 user.data().add(node);
                 user.data().add(node2);
             }).join();
-            generateMoney(uuid, 100);
+            //generateMoney(uuid, 100);
         }).join();
     }
+    /*
+    // Suprisingly enough, kromer2 gives 100KOR by default.
     public static void generateMoney(UUID uuid, float amount) {
         CachedMetaData playerData = luckPerms.getUserManager().getUser(uuid).getCachedData().getMetaData();
         String walletAddress = playerData.getMetaValue("wallet_address");
@@ -88,12 +97,12 @@ public class Main implements DedicatedServerModInitializer {
         moneyGenObject.addProperty("amount", amount);
         HttpRequest request;
         try {
-            request = HttpRequest.newBuilder().uri(new URI(kromerURL + "api/v1/_internal/give-money")).POST(HttpRequest.BodyPublishers.ofString(moneyGenObject.toString())).build();
+            request = HttpRequest.newBuilder().uri(new URI(config.KromerURL() + "api/_internal/wallet/give-money")).POST(HttpRequest.BodyPublishers.ofString(moneyGenObject.toString())).build();
         } catch (URISyntaxException e) {
             throw new RuntimeException(e);
         }
         httpclient.sendAsync(request, HttpResponse.BodyHandlers.ofString()).whenComplete(Main::errorHandler).join();
-    }
+    }*/
 
     public static void errorHandler(HttpResponse<String> response, Throwable throwable) {
         if (throwable != null) {
@@ -106,20 +115,6 @@ public class Main implements DedicatedServerModInitializer {
         }
         if (response.body() == null) {
             LOGGER.error("Failed to send player data to Kromer: No response body");
-            return;
         }
-    }
-
-    public static boolean createTransaction(ServerPlayerEntity sendingPlayer, String address, float amount) {
-        HttpRequest request;
-        CachedMetaData sendingData =  luckPerms.getUserManager().getUser(sendingPlayer.getUuid()).getCachedData().getMetaData();
-        String walletAddress = sendingData.getMetaValue("wallet_address");
-        String walletPassword = sendingData.getMetaValue("wallet_password");
-        try {
-            request = HttpRequest.newBuilder().uri(new URI(kromerURL + "api/v1/transactions/create")).build();
-        } catch (URISyntaxException e) {
-            throw new RuntimeException(e);
-        }
-        return true;
     }
 }

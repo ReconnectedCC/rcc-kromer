@@ -2,14 +2,13 @@ package cc.reconnected.kromer.commands;
 
 import cc.reconnected.kromer.Main;
 import cc.reconnected.kromer.Util;
-import cc.reconnected.kromer.responses.WalletResponse;
+import cc.reconnected.kromer.responses.GetAddressResponse;
 import com.google.gson.Gson;
 import com.mojang.brigadier.CommandDispatcher;
 import net.minecraft.command.CommandRegistryAccess;
 import net.minecraft.server.command.CommandManager;
 import net.minecraft.server.command.ServerCommandSource;
 import net.minecraft.text.Text;
-import net.minecraft.text.TextColor;
 import net.minecraft.util.Formatting;
 
 import java.net.URI;
@@ -29,11 +28,13 @@ public class BalanceCommand {
 
             var manager = Main.userManager;
             var user = manager.getUser(player.getUuid());
+
+            System.out.println(user);
             assert user != null;
 
             String walletAddress = Util.getWalletAddress(user); // My hated
 
-            var url = String.format(Main.config.KromerURL() + "api/v1/wallet/%s", walletAddress);
+            var url = String.format(Main.config.KromerURL() + "api/krist/addresses/%s", walletAddress);
             HttpRequest request;
             try {
                 request = HttpRequest.newBuilder().uri(new URI(url)).GET().build();
@@ -43,8 +44,8 @@ public class BalanceCommand {
 
             Main.httpclient.sendAsync(request, HttpResponse.BodyHandlers.ofString()).whenComplete((response, throwable) -> {
                 errorHandler(response, throwable);
-                WalletResponse walletResponse = new Gson().fromJson(response.body(), WalletResponse.class);
-                var feedback = String.format("Your balance is: %f", walletResponse.balance);
+                GetAddressResponse addressResponse = new Gson().fromJson(response.body(), GetAddressResponse.class);
+                var feedback = String.format("Your balance is: %f", addressResponse.address.balance);
                 source.sendFeedback(() -> Text.literal(feedback).formatted(Formatting.GREEN), false);
             }).join();
 

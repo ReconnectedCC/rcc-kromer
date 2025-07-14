@@ -1,5 +1,7 @@
 package cc.reconnected.kromer.commands;
 
+import cc.reconnected.kromer.responses.TransactionCreateResponse;
+import cc.reconnected.kromer.responses.errors.GenericError;
 import com.google.gson.Gson;
 import com.google.gson.JsonObject;
 import com.mojang.brigadier.CommandDispatcher;
@@ -9,15 +11,8 @@ import com.mojang.brigadier.context.CommandContext;
 
 import cc.reconnected.kromer.Main;
 import cc.reconnected.kromer.Util;
-import cc.reconnected.kromer.responses.ErrorResponse;
-import cc.reconnected.kromer.responses.TransactionCreateResponse;
-import cc.reconnected.kromer.responses.WalletCreateResponse;
-import cc.reconnected.kromer.responses.WalletResponse;
 import net.luckperms.api.model.user.User;
-import net.luckperms.api.node.NodeType;
-import net.luckperms.api.node.types.MetaNode;
 import net.minecraft.command.CommandRegistryAccess;
-import net.minecraft.command.argument.EntityArgumentType;
 import net.minecraft.server.command.CommandManager;
 import net.minecraft.server.command.ServerCommandSource;
 import net.minecraft.server.network.ServerPlayerEntity;
@@ -34,17 +29,16 @@ import java.net.http.HttpResponse;
 
 public class PayCommand {
     public static void register(CommandDispatcher<ServerCommandSource> dispatcher, CommandRegistryAccess registryAccess, CommandManager.RegistrationEnvironment environment) {
-        var rootCommand = literal("pay")
-                .then(argument("player", StringArgumentType.word())
-                .then(argument("amount", FloatArgumentType.floatArg()))
-                .executes(context -> {
-                    return executePay(context);
-                })
-                // metadata is optional
-                .then(argument("metadata", StringArgumentType.greedyString()))
-                .executes(context -> {
-                    return executePay(context);
-                }));
+        var rootCommand = literal("pay") // /pay
+                .then(argument("player", StringArgumentType.word()) // pay <player>
+                    .then(argument("amount", FloatArgumentType.floatArg()) // pay <player> <amount>
+                            .executes(PayCommand::executePay) // pay <player> <amount>
+
+                            .then(argument("metadata", StringArgumentType.greedyString())
+                                    .executes(PayCommand::executePay)) // pay <player> <amount> [metadata]
+
+                    )
+                );
 
         dispatcher.register(rootCommand);
     }
@@ -90,10 +84,12 @@ public class PayCommand {
         obj.addProperty("to", Util.getWalletAddress(otherLuckpermsUser));
         obj.addProperty("amount", amount);
         obj.addProperty("metadata", metadata);
+
+        System.out.println(obj.toString());
         HttpRequest request;
         try {
             request = HttpRequest.newBuilder().uri(
-                new URI(Main.config.KromerURL()+"api/v1/transaction/create")
+                new URI(Main.config.KromerURL()+"api/krist/transactions")
             )
                 .headers("Content-Type", "application/json")
                 .POST(HttpRequest.BodyPublishers.ofString(obj.toString()))
@@ -116,8 +112,8 @@ public class PayCommand {
             }
 
             if (response.statusCode() != 200) {
-                ErrorResponse errorResponse = new Gson().fromJson(body, ErrorResponse.class);
-                context.getSource().sendFeedback(() -> Text.literal("Enountered issue while attempting to create transaction (" + errorResponse.message + "): " + errorResponse.description).formatted(Formatting.RED), false);
+                GenericError errorResponse = new Gson().fromJson(body, GenericError.class);
+                context.getSource().sendFeedback(() -> Text.literal("Enountered issue while attempting to create transaction (" + errorResponse.error + "): " + errorResponse.parameter).formatted(Formatting.RED), false);
                 return;
             }
 

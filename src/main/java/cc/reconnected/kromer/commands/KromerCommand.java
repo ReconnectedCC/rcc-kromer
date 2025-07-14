@@ -1,14 +1,13 @@
 package cc.reconnected.kromer.commands;
 
 import cc.reconnected.kromer.Main;
-import cc.reconnected.kromer.responses.VersionResponse;
-import cc.reconnected.kromer.responses.WalletResponse;
 
+import cc.reconnected.kromer.responses.MotdResponse;
 import com.google.gson.Gson;
 import com.mojang.brigadier.CommandDispatcher;
 
+import com.mojang.brigadier.arguments.IntegerArgumentType;
 import net.fabricmc.loader.api.FabricLoader;
-import net.fabricmc.loader.api.Version;
 import net.minecraft.command.CommandRegistryAccess;
 import net.minecraft.command.argument.EntityArgumentType;
 import net.minecraft.server.command.CommandManager;
@@ -36,35 +35,55 @@ public class KromerCommand {
 
             HttpRequest request;
             try {
-                request = HttpRequest.newBuilder().uri(new URI(Main.config.KromerURL() + "api/v1/version")).GET().build();
+                request = HttpRequest.newBuilder().uri(new URI(Main.config.KromerURL() + "api/krist/motd")).GET().build();
             } catch (URISyntaxException e) {
                 throw new RuntimeException(e);
             }
             Main.httpclient.sendAsync(request, HttpResponse.BodyHandlers.ofString()).whenComplete((response, throwable) -> {
-                VersionResponse versionResponse = new Gson().fromJson(response.body(), VersionResponse.class);
+                MotdResponse motdResponse = new Gson().fromJson(response.body(), MotdResponse.class);
                 
-                var feedback = String.format("Fabric version: %s, server version: %s", modVersion, versionResponse.version);
+                var feedback = String.format("Fabric version: %s, server version: %s", modVersion, motdResponse.motdPackage.version);
                 context.getSource().sendFeedback(() -> Text.literal(feedback).formatted(Formatting.YELLOW), false);
             });
             return 1;
         });
 
-        var giveWalletCommand = literal("givewallet")
-                .then(argument("player", EntityArgumentType.player()))
-                .requires(source -> source.hasPermissionLevel(4))
-                .executes(context -> {
-                    //check if word is a player name
-                    String playerName = EntityArgumentType.getPlayer(context, "player").getEntityName();
-                    //Check if player is online
-                    if (context.getSource().getServer().getPlayerManager().getPlayer(playerName) == null || context.getSource().getServer().getPlayerManager().getPlayer(playerName).getUuid() == null) {
-                        context.getSource().sendFeedback(() -> Text.literal("Player is offline").formatted(Formatting.RED), false);
-                        return 0;
-                    }
-                    Main.firstLogin(playerName, context.getSource().getServer().getPlayerManager().getPlayer(playerName).getUuid());
-                    return 1;
-                });
 
-        var rootCommand = literal("kromer").then(versionCommand).then(giveWalletCommand);
+        var giveWalletCommand = literal("givewallet")
+                .then(argument("player", EntityArgumentType.player()).requires(source -> source.hasPermissionLevel(4))
+                        .executes(context -> {
+                            //check if word is a player name
+                            String playerName = EntityArgumentType.getPlayer(context, "player").getEntityName();
+                            //Check if player is online
+                            if (context.getSource().getServer().getPlayerManager().getPlayer(playerName) == null || context.getSource().getServer().getPlayerManager().getPlayer(playerName).getUuid() == null) {
+                                context.getSource().sendFeedback(() -> Text.literal("Player is offline").formatted(Formatting.RED), false);
+                                return 0;
+                            }
+                            Main.firstLogin(playerName, context.getSource().getServer().getPlayerManager().getPlayer(playerName).getUuid());
+                            return 1;
+                        })
+                );
+
+
+        var setMoneyCommand = literal("setMoney")
+                .then(argument("player", EntityArgumentType.player())
+                        .then(argument("amount", IntegerArgumentType.integer())
+                            .requires(source -> source.hasPermissionLevel(4))
+                            .executes(context -> {
+                                //check if word is a player name
+                                String playerName = EntityArgumentType.getPlayer(context, "player").getEntityName();
+                                //Check if player is online
+                                if (context.getSource().getServer().getPlayerManager().getPlayer(playerName) == null || context.getSource().getServer().getPlayerManager().getPlayer(playerName).getUuid() == null) {
+                                    context.getSource().sendFeedback(() -> Text.literal("Player is offline").formatted(Formatting.RED), false);
+                                    return 0;
+                                }
+                                Main.firstLogin(playerName, context.getSource().getServer().getPlayerManager().getPlayer(playerName).getUuid());
+                                return 1;
+                            })
+                        )
+                );
+
+        var rootCommand = literal("kromer").then(versionCommand).then(giveWalletCommand).then(setMoneyCommand);
 
         dispatcher.register(rootCommand);
     }
