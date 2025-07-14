@@ -1,5 +1,6 @@
 package cc.reconnected.kromer.commands;
 
+import cc.reconnected.kromer.database.Wallet;
 import cc.reconnected.kromer.responses.TransactionCreateResponse;
 import cc.reconnected.kromer.responses.errors.GenericError;
 import com.google.gson.Gson;
@@ -10,8 +11,6 @@ import com.mojang.brigadier.arguments.StringArgumentType;
 import com.mojang.brigadier.context.CommandContext;
 
 import cc.reconnected.kromer.Main;
-import cc.reconnected.kromer.Util;
-import net.luckperms.api.model.user.User;
 import net.minecraft.command.CommandRegistryAccess;
 import net.minecraft.server.command.CommandManager;
 import net.minecraft.server.command.ServerCommandSource;
@@ -65,23 +64,23 @@ public class PayCommand {
         // check if this user has a wallet (luckperms shit set)
         // check if other user has a wallet (luckperms shit set)
         // attempt to send 
-        User luckpermsUser = Main.userManager.getUser(thisPlayer.getUuid());
-        User otherLuckpermsUser = Main.userManager.getUser(player.getUuid());
+        Wallet luckpermsUser = Main.database.getWallet(thisPlayer.getUuid());
+        Wallet otherLuckpermsUser = Main.database.getWallet(player.getUuid());
 
-        if(Util.getWalletAddress(luckpermsUser) == null) {
+        if(luckpermsUser == null) {
             Main.firstLogin(thisPlayer.getName().getString(), thisPlayer.getUuid());
-            luckpermsUser = Main.userManager.getUser(thisPlayer.getUuid());
+            luckpermsUser = Main.database.getWallet(thisPlayer.getUuid());
         }
 
-        if(Util.getWalletAddress(otherLuckpermsUser) == null) {
+        if(otherLuckpermsUser == null) {
             Main.firstLogin(player.getName().getString(), player.getUuid());
-            otherLuckpermsUser = Main.userManager.getUser(player.getUuid());
+            otherLuckpermsUser = Main.database.getWallet(player.getUuid());
         }
 
         
         JsonObject obj = new JsonObject();
-        obj.addProperty("password", Util.getWalletPassword(luckpermsUser));
-        obj.addProperty("to", Util.getWalletAddress(otherLuckpermsUser));
+        obj.addProperty("password", luckpermsUser.password);
+        obj.addProperty("to", otherLuckpermsUser.address);
         obj.addProperty("amount", amount);
         obj.addProperty("metadata", metadata);
 

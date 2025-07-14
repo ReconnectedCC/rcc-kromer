@@ -1,7 +1,7 @@
 package cc.reconnected.kromer.commands;
 
 import cc.reconnected.kromer.Main;
-import cc.reconnected.kromer.Util;
+import cc.reconnected.kromer.database.Wallet;
 import cc.reconnected.kromer.responses.GetAddressResponse;
 import com.google.gson.Gson;
 import com.mojang.brigadier.CommandDispatcher;
@@ -26,15 +26,13 @@ public class BalanceCommand {
             var player = source.getPlayer();
             assert player != null;
 
-            var manager = Main.userManager;
-            var user = manager.getUser(player.getUuid());
+            Wallet wallet = Main.database.getWallet(player.getUuid());
 
-            System.out.println(user);
-            assert user != null;
+            if(wallet == null) {
+                return 0;
+            }
 
-            String walletAddress = Util.getWalletAddress(user); // My hated
-
-            var url = String.format(Main.config.KromerURL() + "api/krist/addresses/%s", walletAddress);
+            var url = String.format(Main.config.KromerURL() + "api/krist/addresses/%s", wallet.address);
             HttpRequest request;
             try {
                 request = HttpRequest.newBuilder().uri(new URI(url)).GET().build();

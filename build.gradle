@@ -30,10 +30,12 @@ dependencies {
     minecraft "com.mojang:minecraft:${project.minecraft_version}"
     mappings "net.fabricmc:yarn:${project.yarn_mappings}:v2"
     modImplementation "net.fabricmc:fabric-loader:${project.loader_version}"
+    implementation "org.java-websocket:Java-WebSocket:${project.jws_version}"
 
     modImplementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_version}"
-    modCompileOnly 'net.luckperms:api:5.4'
     modImplementation "io.wispforest:owo-lib:${project.owo_version}"
+
+    implementation "org.xerial:sqlite-jdbc:${project.sqlite_jdbc}"
 
     annotationProcessor "io.wispforest:owo-lib:${project.owo_version}"
 

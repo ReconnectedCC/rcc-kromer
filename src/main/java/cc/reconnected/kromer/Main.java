@@ -3,7 +3,10 @@ package cc.reconnected.kromer;
 import cc.reconnected.kromer.commands.BalanceCommand;
 import cc.reconnected.kromer.commands.KromerCommand;
 import cc.reconnected.kromer.commands.PayCommand;
+import cc.reconnected.kromer.database.Database;
+import cc.reconnected.kromer.database.Wallet;
 import cc.reconnected.kromer.responses.WalletCreateResponse;
+import cc.reconnected.kromer.websockets.Websockets;
 import com.google.gson.Gson;
 import com.google.gson.JsonObject;
 
@@ -12,14 +15,7 @@ import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
 import net.fabricmc.fabric.api.entity.event.v1.ServerPlayerEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents;
-import net.luckperms.api.LuckPerms;
-import net.luckperms.api.LuckPermsProvider;
-import net.luckperms.api.cacheddata.CachedMetaData;
-import net.luckperms.api.event.user.UserFirstLoginEvent;
-import net.luckperms.api.model.group.GroupManager;
-import net.luckperms.api.model.user.UserManager;
-import net.luckperms.api.node.types.MetaNode;
-import net.minecraft.server.network.ServerPlayerEntity;
+import cc.reconnected.kromer.RccKromerConfig;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -32,13 +28,14 @@ import java.util.UUID;
 
 public class Main implements DedicatedServerModInitializer {
     static Logger LOGGER = LoggerFactory.getLogger("rcc-kromer");
-    public static LuckPerms luckPerms;
-    public static UserManager userManager;
-    public static GroupManager groupManager;
+    public static Database database = new Database();
+
     public static RccKromerConfig config;
     public static HttpClient httpclient = HttpClient.newHttpClient();
+
+    public static Websockets websockets = new Websockets();
+
     public void onInitializeServer() {
-        ServerLifecycleEvents.SERVER_STARTED.register(server -> onStartServer());
         ServerPlayConnectionEvents.JOIN.register(
                 (a,b,c) -> {
                     firstLogin(a.player.getEntityName(), a.player.getUuid());
@@ -52,17 +49,10 @@ public class Main implements DedicatedServerModInitializer {
         config = RccKromerConfig.createAndLoad();
     }
 
-    public void onStartServer() {
-        luckPerms = LuckPermsProvider.get();
-        userManager = luckPerms.getUserManager();
-        groupManager = luckPerms.getGroupManager();
-    }
 
     public static void firstLogin(String username, UUID uuid) {
-        if(luckPerms.getUserManager().getUser(uuid) != null) {
-            if(luckPerms.getUserManager().getUser(uuid).getCachedData().getMetaData().getMetaValue("wallet_address") != null) {
-                return;
-            }
+        if(database.getWallet(uuid) != null) {
+            return;
         }
 
         JsonObject playerObject = new JsonObject();
@@ -74,16 +64,12 @@ public class Main implements DedicatedServerModInitializer {
         } catch (URISyntaxException e) {
             throw new RuntimeException(e);
         }
-    
+
         httpclient.sendAsync(request, HttpResponse.BodyHandlers.ofString()).whenComplete((response, throwable) -> {
             errorHandler(response, throwable);
             WalletCreateResponse walletResponse = new Gson().fromJson(response.body(), WalletCreateResponse.class);
-            MetaNode node = MetaNode.builder("wallet_address", walletResponse.address).build();
-            MetaNode node2 = MetaNode.builder("wallet_password", walletResponse.password).build();
-            luckPerms.getUserManager().modifyUser(uuid, user -> {
-                user.data().add(node);
-                user.data().add(node2);
-            }).join();
+
+            database.setWallet(uuid, new Wallet(walletResponse.address, walletResponse.password));
             //generateMoney(uuid, 100);
         }).join();
     }
