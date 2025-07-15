@@ -81,8 +81,13 @@ public class KromerCommand {
                             })
                         )
                 );
-
-        var rootCommand = literal("kromer").then(versionCommand).then(giveWalletCommand).then(setMoneyCommand);
+        var executeWelfare = literal("welfare")
+                                .requires(source -> source.hasPermissionLevel(4))
+                                .executes(context -> {
+                                    Main.executeWelfare();
+                                    return 1;
+                                });
+        var rootCommand = literal("kromer").then(versionCommand).then(giveWalletCommand).then(setMoneyCommand).then(executeWelfare);
 
         dispatcher.register(rootCommand);
     }
