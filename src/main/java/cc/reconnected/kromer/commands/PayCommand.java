@@ -81,7 +81,6 @@ public class PayCommand {
             otherLuckpermsUser = Main.database.getWallet(otherProfile.getId());
         }
 
-        
         JsonObject obj = new JsonObject();
         obj.addProperty("password", luckpermsUser.password);
         obj.addProperty("to", otherLuckpermsUser.address);

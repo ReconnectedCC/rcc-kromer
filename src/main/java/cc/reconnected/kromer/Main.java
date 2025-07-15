@@ -36,6 +36,7 @@ import java.net.URISyntaxException;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.text.Format;
 import java.util.*;
 
 public class Main implements DedicatedServerModInitializer {
@@ -81,6 +82,7 @@ public class Main implements DedicatedServerModInitializer {
         ServerPlayConnectionEvents.JOIN.register(
                 (a,b,c) -> {
                     firstLogin(a.player.getEntityName(), a.player.getUuid());
+                    checkTransfers(a.player);
                 }
         );
 
@@ -91,8 +93,8 @@ public class Main implements DedicatedServerModInitializer {
         config = RccKromerConfig.createAndLoad();
     }
 
-    public static void notifyTransfer(ServerPlayerEntity player, Transaction transaction) {
-        String userName = transaction.from; // if from is
+    private static String getNameFromWallet(String address) {
+        String userName = address; // if from is
         Pair<UUID, Wallet> fromWallet = database.getWallet(userName);
 
         if(fromWallet != null) {
@@ -102,23 +104,66 @@ public class Main implements DedicatedServerModInitializer {
             }
         }
 
-        Boolean found = !Objects.equals(userName, transaction.from);
+        Boolean found = !Objects.equals(userName, address);
 
+        return found ? String.format("%s (%s)", userName, address) : address;
+    }
+
+    public static void notifyTransfer(ServerPlayerEntity player, Transaction transaction) {
         player.sendMessage(
                 Text.literal("You have been sent ").formatted(Formatting.GREEN)
                         .append(Text.literal(String.valueOf(transaction.value)).formatted(Formatting.DARK_GREEN))
-                        .append(Text.literal("KOR, from ").formatted(Formatting.GREEN))
-                        .append(Text.literal((found ? String.format("%s (%s)", userName, transaction.from) : transaction.from) + "!").formatted(Formatting.DARK_GREEN))
+                        .append(Text.literal("KRO, from ").formatted(Formatting.GREEN))
+                        .append(Text.literal((getNameFromWallet(transaction.from)) + "!").formatted(Formatting.DARK_GREEN))
         );
     }
+    public static void checkTransfers(ServerPlayerEntity player) {
+        Wallet wallet = database.getWallet(player.getUuid());
+        if(wallet == null) return;
+        System.out.println("checktransfers");
+        System.out.println(wallet.toString());
 
-    public static void firstLogin(String username, UUID uuid) {
+        if(wallet.outgoingNotSeen.length != 0) {
+            for (int i = 0; i < wallet.outgoingNotSeen.length; i++) {
+                Transaction transaction = wallet.outgoingNotSeen[i];
+
+                player.sendMessage(
+                        Text.literal("From your account, ").formatted(Formatting.RED)
+                                .append(Text.literal(String.valueOf(transaction.value)).formatted(Formatting.DARK_RED))
+                                .append(Text.literal("KRO, has been sent to").formatted(Formatting.RED))
+                                .append(Text.literal(getNameFromWallet(transaction.to) + ". ").formatted(Formatting.DARK_RED))
+                                .append(Text.literal("Executed at: " + transaction.time.toString()).formatted(Formatting.RED))
+
+                );
+            }
+
+        }
+
+        if(wallet.incomingNotSeen.length != 0) {
+            for (int i = 0; i < wallet.incomingNotSeen.length; i++) {
+                Transaction transaction = wallet.incomingNotSeen[i];
+
+                player.sendMessage(
+                        Text.literal(getNameFromWallet(transaction.from)).formatted(Formatting.DARK_GREEN)
+                                .append(Text.literal(" deposited ").formatted(Formatting.GREEN))
+                                .append(Text.literal((transaction.value)+"KRO").formatted(Formatting.DARK_GREEN))
+                                .append(Text.literal(" into your account. ").formatted(Formatting.GREEN))
+                                .append(Text.literal("Executed at: " + transaction.time.toString()).formatted(Formatting.GREEN))
+                );
+            }
+        }
+
+        wallet.incomingNotSeen = new Transaction[]{};
+        wallet.outgoingNotSeen = new Transaction[]{};
+        database.setWallet(player.getUuid(), wallet);
+    }
+    public static void firstLogin(String name, UUID uuid) {
         if(database.getWallet(uuid) != null) {
             return;
         }
 
         JsonObject playerObject = new JsonObject();
-        playerObject.addProperty("name", username);
+        playerObject.addProperty("name", name);
         playerObject.addProperty("uuid", uuid.toString());
         HttpRequest request;
         try {
@@ -132,27 +177,8 @@ public class Main implements DedicatedServerModInitializer {
             WalletCreateResponse walletResponse = new Gson().fromJson(response.body(), WalletCreateResponse.class);
             Transaction[] array = {};
             database.setWallet(uuid, new Wallet(walletResponse.address, walletResponse.password, array, array));
-            //generateMoney(uuid, 100);
         }).join();
     }
-
-
-    /*
-    // Suprisingly enough, kromer2 gives 100KOR by default.
-    public static void generateMoney(UUID uuid, float amount) {
-        CachedMetaData playerData = luckPerms.getUserManager().getUser(uuid).getCachedData().getMetaData();
-        String walletAddress = playerData.getMetaValue("wallet_address");
-        JsonObject moneyGenObject = new JsonObject();
-        moneyGenObject.addProperty("address", walletAddress);
-        moneyGenObject.addProperty("amount", amount);
-        HttpRequest request;
-        try {
-            request = HttpRequest.newBuilder().uri(new URI(config.KromerURL() + "api/_internal/wallet/give-money")).POST(HttpRequest.BodyPublishers.ofString(moneyGenObject.toString())).build();
-        } catch (URISyntaxException e) {
-            throw new RuntimeException(e);
-        }
-        httpclient.sendAsync(request, HttpResponse.BodyHandlers.ofString()).whenComplete(Main::errorHandler).join();
-    }*/
 
     public static Boolean errorHandler(HttpResponse<String> response, Throwable throwable) {
         if (throwable != null) {

@@ -26,12 +26,12 @@ public class Database {
             """);
             statement.close();
         } catch (SQLException e) {
-            // Fail silently, or log if needed
+            e.printStackTrace();
         }
     }
 
     public void setWallet(UUID playerUuid, Wallet wallet) {
-
+        System.out.println(wallet);
         try {
             if (this.getWallet(playerUuid) == null) {
 
@@ -63,6 +63,7 @@ public class Database {
             }
         } catch (SQLException e) {
             // Fail silently, return nothing
+            e.printStackTrace();
         }
     }
 
@@ -82,7 +83,9 @@ public class Database {
                         new Gson().fromJson(rs.getString("outgoingNotSeen"), Transaction[].class)
                 );
             }
-        } catch (SQLException ignored) {}
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
         return null;
     }
 
@@ -105,7 +108,9 @@ public class Database {
                 );
                 return new Pair<>(uuid, wallet);
             }
-        } catch (SQLException | IllegalArgumentException ignored) {}
+        } catch (SQLException | IllegalArgumentException e) {
+            e.printStackTrace();
+        }
         return null;
     }
 }
