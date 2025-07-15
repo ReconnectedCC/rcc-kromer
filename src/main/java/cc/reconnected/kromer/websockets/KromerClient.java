@@ -76,6 +76,11 @@ public class KromerClient extends WebSocketClient {
         }
     }
 
+    @Override
+    public void onClose(int code, String reason, boolean remote) {
+        Main.LOGGER.error("Websocket was closed for reason: " + reason +" (C:"+code+").");
+    }
+
 
     @Override
     public void onError(Exception ex) {
