@@ -21,6 +21,7 @@ import me.alexdevs.solstice.data.PlayerData;
 import me.alexdevs.solstice.modules.afk.AfkModule;
 import me.alexdevs.solstice.modules.afk.commands.ActiveTimeCommand;
 import me.alexdevs.solstice.modules.afk.data.AfkPlayerData;
+import me.lucko.fabric.api.permissions.v0.Permissions;
 import net.fabricmc.api.DedicatedServerModInitializer;
 import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
@@ -41,7 +42,6 @@ import java.net.URISyntaxException;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
-import java.text.Format;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.*;
@@ -115,14 +115,29 @@ public class Main implements DedicatedServerModInitializer {
     }
 
     public static void executeWelfare() {
+
+        List<ServerPlayerEntity> playersWithSupporter = client.server.getPlayerManager().getPlayerList().stream()
+                        .filter(z -> Permissions.check(z, config.SupporterGroup()))
+                        .toList();
+
+        List<ServerPlayerEntity> playersWithoutSupporter = client.server.getPlayerManager().getPlayerList().stream()
+                .filter(z -> !Permissions.check(z, config.SupporterGroup()))
+                .toList();
+
+        float welfare = config.HourlyWelfare();
+        if(!playersWithSupporter.isEmpty() && !playersWithoutSupporter.isEmpty()) {
+            welfare = config.HourlyWelfare() * (config.SupporterMultiplier() * playersWithSupporter.size());
+        }
+
+        float finalWelfare = welfare;
+
         client.server.getPlayerManager().getPlayerList().forEach(p -> {
-            // TODO: all of that supporter multiplication, diy
             Wallet wallet = Main.database.getWallet(p.getUuid());
             if(wallet == null) return;
-            Main.giveMoney(wallet, config.HourlyWelfare());
+            Main.giveMoney(wallet, finalWelfare);
 
             p.sendMessage(
-                    Text.literal("Thanks for playing! You've been given your welfare of " + config.HourlyWelfare()).formatted(Formatting.GRAY)
+                    Text.literal("Thanks for playing! You've been given your welfare of " + finalWelfare + "KRO!").formatted(Formatting.GRAY)
             );
         });
     }
