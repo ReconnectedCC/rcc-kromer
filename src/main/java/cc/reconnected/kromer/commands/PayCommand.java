@@ -5,13 +5,17 @@ import cc.reconnected.kromer.responses.TransactionCreateResponse;
 import cc.reconnected.kromer.responses.errors.GenericError;
 import com.google.gson.Gson;
 import com.google.gson.JsonObject;
+import com.mojang.authlib.GameProfile;
 import com.mojang.brigadier.CommandDispatcher;
 import com.mojang.brigadier.arguments.FloatArgumentType;
 import com.mojang.brigadier.arguments.StringArgumentType;
 import com.mojang.brigadier.context.CommandContext;
 
 import cc.reconnected.kromer.Main;
+import com.mojang.brigadier.exceptions.CommandSyntaxException;
 import net.minecraft.command.CommandRegistryAccess;
+import net.minecraft.command.argument.EntityArgumentType;
+import net.minecraft.command.argument.GameProfileArgumentType;
 import net.minecraft.server.command.CommandManager;
 import net.minecraft.server.command.ServerCommandSource;
 import net.minecraft.server.network.ServerPlayerEntity;
@@ -29,7 +33,7 @@ import java.net.http.HttpResponse;
 public class PayCommand {
     public static void register(CommandDispatcher<ServerCommandSource> dispatcher, CommandRegistryAccess registryAccess, CommandManager.RegistrationEnvironment environment) {
         var rootCommand = literal("pay") // /pay
-                .then(argument("player", StringArgumentType.word()) // pay <player>
+                .then(argument("player", GameProfileArgumentType.gameProfile()) // pay <player>
                     .then(argument("amount", FloatArgumentType.floatArg()) // pay <player> <amount>
                             .executes(PayCommand::executePay) // pay <player> <amount>
 
@@ -44,28 +48,28 @@ public class PayCommand {
 
 
     private static int executePay(CommandContext<ServerCommandSource> context) {
-        String playerName = StringArgumentType.getString(context, "player");
+        GameProfile otherProfile;
+        try {
+            otherProfile = GameProfileArgumentType.getProfileArgument(context, "player").iterator().next();
+        } catch (CommandSyntaxException e) {
+            throw new RuntimeException(e);
+        }
+
+        if(otherProfile == null) {
+            context.getSource().sendFeedback(() -> Text.literal("User does not exist.").formatted(Formatting.RED), false);
+            return 0;
+        }
+
         Float amount = FloatArgumentType.getFloat(context, "amount");
         String metadata = null;
         if (context.getNodes().size() > 3) { // 3 nodes: "pay", "player", "amount", and optionally "metadata" 
             metadata = StringArgumentType.getString(context, "metadata");
         }
 
-        Math.round(amount);
-        //Check if player is online
-        if (context.getSource().getServer().getPlayerManager().getPlayer(playerName) == null || context.getSource().getServer().getPlayerManager().getPlayer(playerName).getUuid() == null) {
-            context.getSource().sendFeedback(() -> Text.literal("Player is offline").formatted(Formatting.RED), false);
-            return 0;
-        }
-
-        ServerPlayerEntity player = context.getSource().getServer().getPlayerManager().getPlayer(playerName);
         ServerPlayerEntity thisPlayer = context.getSource().getPlayer();
-        
-        // check if this user has a wallet (luckperms shit set)
-        // check if other user has a wallet (luckperms shit set)
-        // attempt to send 
+
         Wallet luckpermsUser = Main.database.getWallet(thisPlayer.getUuid());
-        Wallet otherLuckpermsUser = Main.database.getWallet(player.getUuid());
+        Wallet otherLuckpermsUser = Main.database.getWallet(otherProfile.getId());
 
         if(luckpermsUser == null) {
             Main.firstLogin(thisPlayer.getName().getString(), thisPlayer.getUuid());
@@ -73,8 +77,8 @@ public class PayCommand {
         }
 
         if(otherLuckpermsUser == null) {
-            Main.firstLogin(player.getName().getString(), player.getUuid());
-            otherLuckpermsUser = Main.database.getWallet(player.getUuid());
+            Main.firstLogin(otherProfile.getName(), otherProfile.getId());
+            otherLuckpermsUser = Main.database.getWallet(otherProfile.getId());
         }
 
         
@@ -84,7 +88,6 @@ public class PayCommand {
         obj.addProperty("amount", amount);
         obj.addProperty("metadata", metadata);
 
-        System.out.println(obj.toString());
         HttpRequest request;
         try {
             request = HttpRequest.newBuilder().uri(
@@ -117,7 +120,7 @@ public class PayCommand {
             }
 
             TransactionCreateResponse transactionResponse = new Gson().fromJson(body, TransactionCreateResponse.class);
-            context.getSource().sendFeedback(() -> Text.literal("Sent " + amount + " kromer to " + playerName + "!").formatted(Formatting.GREEN), false);
+            context.getSource().sendFeedback(() -> Text.literal("Sent " + amount + " kromer to " + otherProfile.getName() + "!").formatted(Formatting.GREEN), false);
         }).join();
         return 1;
     }
