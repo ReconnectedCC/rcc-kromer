@@ -16,6 +16,11 @@ import com.google.gson.JsonObject;
 
 import com.google.gson.reflect.TypeToken;
 import com.mojang.authlib.GameProfile;
+import me.alexdevs.solstice.Solstice;
+import me.alexdevs.solstice.data.PlayerData;
+import me.alexdevs.solstice.modules.afk.AfkModule;
+import me.alexdevs.solstice.modules.afk.commands.ActiveTimeCommand;
+import me.alexdevs.solstice.modules.afk.data.AfkPlayerData;
 import net.fabricmc.api.DedicatedServerModInitializer;
 import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
@@ -78,10 +83,9 @@ public class Main implements DedicatedServerModInitializer {
             }
         });
 
-
         ServerPlayConnectionEvents.JOIN.register(
                 (a,b,c) -> {
-                    firstLogin(a.player.getEntityName(), a.player.getUuid());
+                    firstLogin(a.player.getEntityName(), a.player.getUuid(), a.player);
                     checkTransfers(a.player);
                 }
         );
@@ -119,6 +123,7 @@ public class Main implements DedicatedServerModInitializer {
     }
     public static void checkTransfers(ServerPlayerEntity player) {
         Wallet wallet = database.getWallet(player.getUuid());
+
         if(wallet == null) return;
         System.out.println("checktransfers");
         System.out.println(wallet.toString());
@@ -142,7 +147,6 @@ public class Main implements DedicatedServerModInitializer {
         if(wallet.incomingNotSeen.length != 0) {
             for (int i = 0; i < wallet.incomingNotSeen.length; i++) {
                 Transaction transaction = wallet.incomingNotSeen[i];
-
                 player.sendMessage(
                         Text.literal(getNameFromWallet(transaction.from)).formatted(Formatting.DARK_GREEN)
                                 .append(Text.literal(" deposited ").formatted(Formatting.GREEN))
@@ -157,9 +161,20 @@ public class Main implements DedicatedServerModInitializer {
         wallet.outgoingNotSeen = new Transaction[]{};
         database.setWallet(player.getUuid(), wallet);
     }
-    public static void firstLogin(String name, UUID uuid) {
+    public static void firstLogin(String name, UUID uuid, ServerPlayerEntity player) {
         if(database.getWallet(uuid) != null) {
             return;
+        }
+
+        // Retroactive KRO giving
+        AfkPlayerData solsticeData = Solstice.modules.getModule(AfkModule.class).getPlayerData(uuid);
+        float kroAmount = (float) (((double) solsticeData.activeTime / 3600) * 1.50);
+        if(kroAmount != 0 && player != null) {
+            player.sendMessage(
+                    Text.literal("You have recieved: ").formatted(Formatting.DARK_GREEN)
+                            .append(Text.literal((kroAmount)+"KRO").formatted(Formatting.DARK_GREEN))
+                            .append(Text.literal(" for your playtime!").formatted(Formatting.GREEN))
+            );
         }
 
         JsonObject playerObject = new JsonObject();
@@ -176,10 +191,28 @@ public class Main implements DedicatedServerModInitializer {
             if(errorHandler(response, throwable)) return;
             WalletCreateResponse walletResponse = new Gson().fromJson(response.body(), WalletCreateResponse.class);
             Transaction[] array = {};
-            database.setWallet(uuid, new Wallet(walletResponse.address, walletResponse.password, array, array));
+            Wallet wallet = new Wallet(walletResponse.address, walletResponse.password, array, array);
+            database.setWallet(uuid, wallet);
+            if(kroAmount != 0) {
+                Main.giveMoney(wallet, kroAmount);
+            }
         }).join();
     }
+    public static void giveMoney(Wallet wallet, float amount) {
+        JsonObject giveMoneyObject = new JsonObject();
+        giveMoneyObject.addProperty("address", wallet.address);
+        giveMoneyObject.addProperty("amount", amount);
+        HttpRequest request;
+        try {
+            request = HttpRequest.newBuilder().uri(new URI(config.KromerURL()+"api/_internal/wallet/give-money")).headers("Kromer-Key", config.KromerKey(), "Content-Type", "application/json").POST(HttpRequest.BodyPublishers.ofString(giveMoneyObject.toString())).build();
+        } catch (URISyntaxException e) {
+            throw new RuntimeException(e);
+        }
 
+        httpclient.sendAsync(request, HttpResponse.BodyHandlers.ofString()).whenComplete((response, throwable) -> {
+            if(errorHandler(response, throwable)) return;
+        }).join();
+    }
     public static Boolean errorHandler(HttpResponse<String> response, Throwable throwable) {
         if (throwable != null) {
             LOGGER.error("Failed to send player data to Kromer", throwable);

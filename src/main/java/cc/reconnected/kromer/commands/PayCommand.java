@@ -68,22 +68,22 @@ public class PayCommand {
 
         ServerPlayerEntity thisPlayer = context.getSource().getPlayer();
 
-        Wallet luckpermsUser = Main.database.getWallet(thisPlayer.getUuid());
-        Wallet otherLuckpermsUser = Main.database.getWallet(otherProfile.getId());
+        Wallet wallet = Main.database.getWallet(thisPlayer.getUuid());
+        Wallet otherWallet = Main.database.getWallet(otherProfile.getId());
 
-        if(luckpermsUser == null) {
-            Main.firstLogin(thisPlayer.getName().getString(), thisPlayer.getUuid());
-            luckpermsUser = Main.database.getWallet(thisPlayer.getUuid());
+        if(wallet == null) {
+            context.getSource().sendFeedback(() -> Text.literal("You do not have a wallet. This should be impossible. Rejoin/contact a staff member.").formatted(Formatting.RED), false);
+            return 0;
         }
 
-        if(otherLuckpermsUser == null) {
-            Main.firstLogin(otherProfile.getName(), otherProfile.getId());
-            otherLuckpermsUser = Main.database.getWallet(otherProfile.getId());
+        if(otherWallet == null) {
+            context.getSource().sendFeedback(() -> Text.literal("Other user does not have a wallet. They haven't joined recently.").formatted(Formatting.RED), false);
+            return 0;
         }
 
         JsonObject obj = new JsonObject();
-        obj.addProperty("password", luckpermsUser.password);
-        obj.addProperty("to", otherLuckpermsUser.address);
+        obj.addProperty("password", wallet.password);
+        obj.addProperty("to", otherWallet.address);
         obj.addProperty("amount", amount);
         obj.addProperty("metadata", metadata);
 

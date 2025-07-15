@@ -12,8 +12,10 @@ import net.minecraft.command.CommandRegistryAccess;
 import net.minecraft.command.argument.EntityArgumentType;
 import net.minecraft.server.command.CommandManager;
 import net.minecraft.server.command.ServerCommandSource;
+import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.text.Text;
 import net.minecraft.util.Formatting;
+import org.apache.logging.log4j.core.jmx.Server;
 
 import static net.minecraft.server.command.CommandManager.argument;
 import static net.minecraft.server.command.CommandManager.literal;
@@ -53,31 +55,28 @@ public class KromerCommand {
                 .then(argument("player", EntityArgumentType.player()).requires(source -> source.hasPermissionLevel(4))
                         .executes(context -> {
                             //check if word is a player name
-                            String playerName = EntityArgumentType.getPlayer(context, "player").getEntityName();
+                            ServerPlayerEntity player = EntityArgumentType.getPlayer(context, "player");
                             //Check if player is online
-                            if (context.getSource().getServer().getPlayerManager().getPlayer(playerName) == null || context.getSource().getServer().getPlayerManager().getPlayer(playerName).getUuid() == null) {
+                            if (player == null || player.getUuid() == null) {
                                 context.getSource().sendFeedback(() -> Text.literal("Player is offline").formatted(Formatting.RED), false);
                                 return 0;
                             }
-                            Main.firstLogin(playerName, context.getSource().getServer().getPlayerManager().getPlayer(playerName).getUuid());
+                            Main.firstLogin(player.getEntityName(), player.getUuid(), player);
                             return 1;
                         })
                 );
 
 
-        var setMoneyCommand = literal("setMoney")
+        var setMoneyCommand = literal("addMoney")
                 .then(argument("player", EntityArgumentType.player())
                         .then(argument("amount", IntegerArgumentType.integer())
                             .requires(source -> source.hasPermissionLevel(4))
                             .executes(context -> {
                                 //check if word is a player name
-                                String playerName = EntityArgumentType.getPlayer(context, "player").getEntityName();
-                                //Check if player is online
-                                if (context.getSource().getServer().getPlayerManager().getPlayer(playerName) == null || context.getSource().getServer().getPlayerManager().getPlayer(playerName).getUuid() == null) {
-                                    context.getSource().sendFeedback(() -> Text.literal("Player is offline").formatted(Formatting.RED), false);
-                                    return 0;
-                                }
-                                Main.firstLogin(playerName, context.getSource().getServer().getPlayerManager().getPlayer(playerName).getUuid());
+                                ServerPlayerEntity player = EntityArgumentType.getPlayer(context, "player");
+                                Integer amount = IntegerArgumentType.getInteger(context, "amount");
+
+                                Main.giveMoney(Main.database.getWallet(player.getUuid()), amount);
                                 return 1;
                             })
                         )

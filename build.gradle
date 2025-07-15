@@ -24,6 +24,24 @@ loom {
 repositories {
     mavenCentral()
     maven { url 'https://maven.wispforest.io' }
+    maven {
+        name = "alexdevs"
+        url ="https://maven.alexdevs.me/releases"
+    }
+
+
+    // SOLSTICE DEPS
+    maven { url 'https://maven.nucleoid.xyz' }
+
+    maven {
+        name = "TerraformersMC"
+        url = "https://maven.terraformersmc.com/"
+    }
+    maven {
+        name = "Ladysnake Libs"
+        url = 'https://maven.ladysnake.org/releases'
+    }
+    // END SOLSTICE DEPS
 }
 
 dependencies {
@@ -35,6 +53,13 @@ dependencies {
     modImplementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_version}"
     modImplementation "io.wispforest:owo-lib:${project.owo_version}"
 
+    // SOLSTICE DEPS
+    include modImplementation("me.lucko:fabric-permissions-api:${project.permissions_api_version}")
+    include modImplementation("eu.pb4:placeholder-api:${project.placeholderapi_version}")
+    include modImplementation("eu.pb4:sgui:${project.sgui_version}")
+    // END SOLSTICE DEPS
+
+    modImplementation "me.alexdevs:solstice:${project.solstice_version}"
     implementation "org.xerial:sqlite-jdbc:${project.sqlite_jdbc}"
 
     annotationProcessor "io.wispforest:owo-lib:${project.owo_version}"
