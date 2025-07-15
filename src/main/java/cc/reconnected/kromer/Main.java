@@ -42,7 +42,12 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.text.Format;
+import java.time.Duration;
+import java.time.LocalDateTime;
 import java.util.*;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 
 public class Main implements DedicatedServerModInitializer {
     public static Logger LOGGER = LoggerFactory.getLogger("rcc-kromer");
@@ -96,6 +101,30 @@ public class Main implements DedicatedServerModInitializer {
         CommandRegistrationCallback.EVENT.register(KromerCommand::register);
 
         config = RccKromerConfig.createAndLoad();
+
+        ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
+
+        long initialDelay = getDelayUntilNextHourInSeconds();
+        long oneHour = 3600; // seconds
+
+        scheduler.scheduleAtFixedRate(new Runnable() {
+            public void run() {
+                Main.executeWelfare();
+            }
+        }, initialDelay, oneHour, TimeUnit.SECONDS);
+    }
+
+    public static void executeWelfare() {
+        client.server.getPlayerManager().getPlayerList().forEach(p -> {
+            // TODO: all of that supporter multiplication, diy
+            Wallet wallet = Main.database.getWallet(p.getUuid());
+            if(wallet == null) return;
+            Main.giveMoney(wallet, config.HourlyWelfare());
+
+            p.sendMessage(
+                    Text.literal("Thanks for playing! You've been given your welfare of " + config.HourlyWelfare()).formatted(Formatting.GRAY)
+            );
+        });
     }
 
     private static String getNameFromWallet(String address) {
@@ -122,6 +151,7 @@ public class Main implements DedicatedServerModInitializer {
                         .append(Text.literal((getNameFromWallet(transaction.from)) + "!").formatted(Formatting.DARK_GREEN))
         );
     }
+
     public static void checkTransfers(ServerPlayerEntity player) {
         Wallet wallet = database.getWallet(player.getUuid());
 
@@ -160,6 +190,14 @@ public class Main implements DedicatedServerModInitializer {
         wallet.outgoingNotSeen = new Transaction[]{};
         database.setWallet(player.getUuid(), wallet);
     }
+
+    private static long getDelayUntilNextHourInSeconds() {
+        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime nextHour = now.plusHours(1).withMinute(0).withSecond(0).withNano(0);
+        Duration duration = Duration.between(now, nextHour);
+        return duration.getSeconds();
+    }
+
     public static void firstLogin(String name, UUID uuid, ServerPlayerEntity player) {
         if(database.getWallet(uuid) != null) {
             return;
