@@ -31,7 +31,6 @@ public class Database {
     }
 
     public void setWallet(UUID playerUuid, Wallet wallet) {
-        System.out.println(wallet);
         try {
             if (this.getWallet(playerUuid) == null) {
 

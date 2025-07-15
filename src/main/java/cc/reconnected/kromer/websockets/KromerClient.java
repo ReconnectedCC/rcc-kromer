@@ -31,20 +31,14 @@ public class KromerClient extends WebSocketClient {
 
     @Override
     public void onOpen(ServerHandshake handshakedata) {
-        System.out.println("new connection opened");
+        Main.LOGGER.debug("Websocket opened!");
         this.send(new Gson().toJson(new SubscribeEvent("transactions", 0)));
         this.send(new Gson().toJson(new SubscribeEvent("names", 1)));
     }
 
-    @Override
-    public void onClose(int code, String reason, boolean remote) {
-        System.out.println("closed with exit code " + code + " additional info: " + reason);
-    }
 
     @Override
     public void onMessage(String message) {
-        System.out.println("received message: " + message);
-
         GenericEvent event = new Gson().fromJson(message, GenericEvent.class);
 
         if(Objects.equals(event.event, "transaction")) {
@@ -82,14 +76,10 @@ public class KromerClient extends WebSocketClient {
         }
     }
 
-    @Override
-    public void onMessage(ByteBuffer message) {
-        System.out.println("received ByteBuffer");
-    }
 
     @Override
     public void onError(Exception ex) {
-        System.err.println("an error occurred:" + ex);
+        Main.LOGGER.error("A error occured within the websocket: " + ex);
     }
 
 }

@@ -45,7 +45,7 @@ import java.text.Format;
 import java.util.*;
 
 public class Main implements DedicatedServerModInitializer {
-    static Logger LOGGER = LoggerFactory.getLogger("rcc-kromer");
+    public static Logger LOGGER = LoggerFactory.getLogger("rcc-kromer");
     public static Database database = new Database();
 
     public static RccKromerConfig config;
@@ -54,7 +54,8 @@ public class Main implements DedicatedServerModInitializer {
     public void onInitializeServer() {
         ServerLifecycleEvents.SERVER_STARTED.register((server) -> {
             try {
-                System.out.println("Requesting websocket");
+
+                LOGGER.debug("Connecting to Websocket..");
 
                 HttpRequest request = HttpRequest.newBuilder().uri(
                         new URI(Main.config.KromerURL()+"api/krist/ws/start"))
@@ -66,7 +67,7 @@ public class Main implements DedicatedServerModInitializer {
                     if(errorHandler(response, throwable)) return;
 
                     WebsocketStartResponse resp = new Gson().fromJson(response.body(), WebsocketStartResponse.class);
-                    System.out.println("Websocket found, URL: " + resp.url);
+                    LOGGER.debug("Websocket URL found: " + resp.url);
 
                     try {
                          client = new KromerClient( new URI(resp.url), server );
@@ -76,7 +77,7 @@ public class Main implements DedicatedServerModInitializer {
 
                     client.connect();
 
-                    System.out.println("Websocket started. Connecting to domain: " + client.getURI().toString());
+                    LOGGER.debug("Websocket connected.");
                 }).join();
             } catch (java.net.URISyntaxException u) {
                 u.printStackTrace();
@@ -125,8 +126,6 @@ public class Main implements DedicatedServerModInitializer {
         Wallet wallet = database.getWallet(player.getUuid());
 
         if(wallet == null) return;
-        System.out.println("checktransfers");
-        System.out.println(wallet.toString());
 
         if(wallet.outgoingNotSeen.length != 0) {
             for (int i = 0; i < wallet.outgoingNotSeen.length; i++) {
