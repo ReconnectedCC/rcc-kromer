@@ -120,7 +120,12 @@ public class PayCommand {
             }
 
             TransactionCreateResponse transactionResponse = new Gson().fromJson(body, TransactionCreateResponse.class);
-            context.getSource().sendFeedback(() -> Text.literal("Sent " + amount + " kromer to " + otherProfile.getName() + "!").formatted(Formatting.GREEN), false);
+            context.getSource().sendFeedback(() ->
+                    Text.literal("Sent ").formatted(Formatting.GREEN)
+                            .append(Text.literal( amount + "KRO ").formatted(Formatting.DARK_GREEN))
+                            .append(Text.literal("to ").formatted(Formatting.GREEN))
+                            .append(Text.literal(otherProfile.getName() + "!").formatted(Formatting.DARK_GREEN))
+                    , false);
         }).join();
         return 1;
     }

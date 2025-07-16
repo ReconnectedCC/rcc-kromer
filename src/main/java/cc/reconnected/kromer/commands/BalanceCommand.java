@@ -50,7 +50,7 @@ public class BalanceCommand {
                 if(errorHandler(response, throwable)) return;
 
                 GetAddressResponse addressResponse = new Gson().fromJson(response.body(), GetAddressResponse.class);
-                var feedback = String.format("Your balance is: %.2f", addressResponse.address.balance);
+                var feedback = String.format("Your balance is: %.2fKRO.", addressResponse.address.balance);
                 source.sendFeedback(() -> Text.literal(feedback).formatted(Formatting.GREEN), false);
             }).join();
 
