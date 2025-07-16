@@ -33,15 +33,12 @@ import static net.minecraft.server.command.CommandManager.literal;
 
 public class PayCommand {
     public static void register(CommandDispatcher<ServerCommandSource> dispatcher, CommandRegistryAccess registryAccess, CommandManager.RegistrationEnvironment environment) {
-        var rootCommand = literal("pay") // /pay
-                .then(argument("player", GameProfileArgumentType.gameProfile()) // pay <player>
-                        .then(argument("amount", FloatArgumentType.floatArg()) // pay <player> <amount>
-                                .executes(PayCommand::executePay) // pay <player> <amount>
+        var rootCommand = literal("pay")
+                .then(argument("recipient", StringArgumentType.word())
+                        .then(argument("amount", FloatArgumentType.floatArg())
+                                .executes(PayCommand::executePay)
                                 .then(argument("metadata", StringArgumentType.greedyString())
-                                        .executes(PayCommand::executePay)) // pay <player> <amount> [metadata]
-
-                        )
-                );
+                                        .executes(PayCommand::executePay))));
 
         dispatcher.register(rootCommand);
     }
@@ -54,21 +51,39 @@ public class PayCommand {
 
 
     private static int executePay(CommandContext<ServerCommandSource> context) {
-        GameProfile otherProfile;
-        try {
-            otherProfile = GameProfileArgumentType.getProfileArgument(context, "player").iterator().next();
-        } catch (CommandSyntaxException e) {
-            throw new RuntimeException(e);
-        }
-
-        if (otherProfile == null) {
-            context.getSource().sendFeedback(() -> Text.literal("User does not exist.").formatted(Formatting.RED), false);
-            return 0;
-        }
+        String recipientInput = StringArgumentType.getString(context, "recipient");
+        String kristAddress = null;
+        String recipientName = null;
 
         if(!Kromer.kromerStatus) {
             context.getSource().sendFeedback(() -> Text.literal("Kromer is currently unavailable.").formatted(Formatting.RED), false);
             return 0;
+        }
+
+        if (recipientInput.matches("^k[a-z0-9]{9}$")) {
+            kristAddress = recipientInput;
+            recipientName = recipientInput;
+        } else {
+            GameProfile otherProfile;
+            try {
+                otherProfile = context.getSource().getServer().getUserCache().findByName(recipientInput).orElse(null);
+            } catch (Exception e) {
+                otherProfile = null;
+            }
+
+            if (otherProfile == null) {
+                context.getSource().sendFeedback(() -> Text.literal("User not found and not a valid address.").formatted(Formatting.RED), false);
+                return 0;
+            }
+
+            Wallet otherWallet = Kromer.database.getWallet(otherProfile.getId());
+            if (otherWallet == null) {
+                context.getSource().sendFeedback(() -> Text.literal("Other user does not have a wallet. They haven't joined recently.").formatted(Formatting.RED), false);
+                return 0;
+            }
+
+            kristAddress = otherWallet.address;
+            recipientName = otherProfile.getName();
         }
 
         Float rawAmount = FloatArgumentType.getFloat(context, "amount");
@@ -78,15 +93,9 @@ public class PayCommand {
         ServerPlayerEntity thisPlayer = context.getSource().getPlayer();
 
         Wallet wallet = Kromer.database.getWallet(thisPlayer.getUuid());
-        Wallet otherWallet = Kromer.database.getWallet(otherProfile.getId());
 
         if (wallet == null) {
             context.getSource().sendFeedback(() -> Text.literal("You do not have a wallet. This should be impossible. Rejoin/contact a staff member.").formatted(Formatting.RED), false);
-            return 0;
-        }
-
-        if (otherWallet == null) {
-            context.getSource().sendFeedback(() -> Text.literal("Other user does not have a wallet. They haven't joined recently.").formatted(Formatting.RED), false);
             return 0;
         }
 
@@ -102,7 +111,7 @@ public class PayCommand {
 
         JsonObject obj = new JsonObject();
         obj.addProperty("password", wallet.password);
-        obj.addProperty("to", otherWallet.address);
+        obj.addProperty("to", kristAddress);
         obj.addProperty("amount", amount);
         obj.addProperty("metadata", metadata);
 
@@ -118,6 +127,7 @@ public class PayCommand {
             throw new RuntimeException(e);
         }
 
+        String finalRecipientName = recipientName;
         Kromer.httpclient.sendAsync(request, HttpResponse.BodyHandlers.ofString()).whenComplete((response, throwable) -> {
             if (throwable != null) {
                 context.getSource().sendFeedback(() -> Text.literal("Encountered issue while attempting to create transaction: " + throwable).formatted(Formatting.RED), false);
@@ -142,7 +152,7 @@ public class PayCommand {
                             Text.literal("Sent ").formatted(Formatting.GREEN)
                                     .append(Text.literal(amount + "KRO ").formatted(Formatting.DARK_GREEN))
                                     .append(Text.literal("to ").formatted(Formatting.GREEN))
-                                    .append(Text.literal(otherProfile.getName() + "!").formatted(Formatting.DARK_GREEN))
+                                    .append(Text.literal(finalRecipientName + "!").formatted(Formatting.DARK_GREEN))
                     , false);
         }).join();
         return 1;
