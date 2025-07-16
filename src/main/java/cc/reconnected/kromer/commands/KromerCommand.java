@@ -75,7 +75,7 @@ public class KromerCommand {
                                 int amount = IntegerArgumentType.getInteger(context, "amount");
 
                                 Kromer.giveMoney(Kromer.database.getWallet(player.getUuid()), amount);
-                                var feedback = String.format("Added money %d KOR to %s.", amount, player.getEntityName());
+                                var feedback = String.format("Added %dKRO to %s.", amount, player.getEntityName());
                                 context.getSource().sendFeedback(() -> Text.literal(feedback).formatted(Formatting.YELLOW), false);
                                 return 1;
                             })
