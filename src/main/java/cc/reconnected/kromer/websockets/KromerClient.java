@@ -15,6 +15,7 @@ import org.java_websocket.drafts.Draft;
 import org.java_websocket.handshake.ServerHandshake;
 
 import java.net.URI;
+import java.net.URISyntaxException;
 import java.util.*;
 
 public class KromerClient extends WebSocketClient {
@@ -95,29 +96,10 @@ public class KromerClient extends WebSocketClient {
     }
 
     private void tryReconnect() {
-        if (reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
-            Main.LOGGER.error("[WS] Max reconnect attempts reached.");
-            return;
+        try {
+            Main.connectWebsoket(server); // connectWebsocket has it's own reconnection handling information
+        } catch (URISyntaxException e) {
+            throw new RuntimeException(e);
         }
-
-        long delay = 2000 * (1L << reconnectAttempts); // exponential backoff
-        reconnectAttempts++;
-
-        Main.LOGGER.info("[WS] Reconnecting in " + delay + " ms (attempt " + reconnectAttempts + ")");
-
-        new Timer("WebSocket-Reconnect", true).schedule(new TimerTask() {
-            @Override
-            public void run() {
-                if (!isOpen()) {
-                    Main.LOGGER.info("[WS] Attempting reconnect (attempt " + reconnectAttempts + ")");
-                    try {
-                        connect(); // Non-blocking
-                    } catch (Exception e) {
-                        Main.LOGGER.error("[WS] Reconnect failed: ", e);
-                        tryReconnect(); // Schedule next attempt
-                    }
-                }
-            }
-        }, delay);
     }
 }

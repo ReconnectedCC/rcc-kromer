@@ -56,35 +56,52 @@ public class Main implements DedicatedServerModInitializer {
     public static RccKromerConfig config;
     public static HttpClient httpclient = HttpClient.newHttpClient();
     private static KromerClient client;
-    
+
+    public static void connectWebsoket(MinecraftServer server) throws URISyntaxException {
+        LOGGER.debug("Connecting to Websocket..");
+
+        HttpRequest request = HttpRequest.newBuilder().uri(
+                        new URI(Main.config.KromerURL()+"api/krist/ws/start"))
+                .headers("Content-Type", "application/json")
+                .POST(HttpRequest.BodyPublishers.ofString((new JsonObject()).toString()))
+                .build();
+
+        Main.httpclient.sendAsync(request, HttpResponse.BodyHandlers.ofString()).whenComplete((response, throwable) -> {
+            if(errorHandler(response, throwable)) {
+                    LOGGER.debug("Websocket URL was not found. Retrying in 1 second.");
+
+                    new Timer("WebSocket-Retry", true).schedule(new TimerTask() {
+                        @Override
+                        public void run() {
+                            try {
+                                connectWebsoket(server);
+                            } catch (URISyntaxException ex) {
+                                throw new RuntimeException(ex);
+                            }
+                        }
+                    }, 1000);
+
+                return;
+            };
+
+            WebsocketStartResponse resp = new Gson().fromJson(response.body(), WebsocketStartResponse.class);
+            LOGGER.debug("Websocket URL found: " + resp.url);
+
+            try {
+                client = new KromerClient( new URI(resp.url), server);
+            } catch (URISyntaxException e) {
+                throw new RuntimeException(e);
+            }
+
+            client.connect();
+
+            LOGGER.debug("Websocket connected.");
+        }).join();
+    }
     public void onInitializeServer() {
         ServerLifecycleEvents.SERVER_STARTED.register((server) -> {
             try {
-
-                LOGGER.debug("Connecting to Websocket..");
-
-                HttpRequest request = HttpRequest.newBuilder().uri(
-                        new URI(Main.config.KromerURL()+"api/krist/ws/start"))
-                            .headers("Content-Type", "application/json")
-                            .POST(HttpRequest.BodyPublishers.ofString((new JsonObject()).toString()))
-                            .build();
-
-                Main.httpclient.sendAsync(request, HttpResponse.BodyHandlers.ofString()).whenComplete((response, throwable) -> {
-                    if(errorHandler(response, throwable)) return;
-
-                    WebsocketStartResponse resp = new Gson().fromJson(response.body(), WebsocketStartResponse.class);
-                    LOGGER.debug("Websocket URL found: " + resp.url);
-
-                    try {
-                         client = new KromerClient( new URI(resp.url), server );
-                    } catch (URISyntaxException e) {
-                        throw new RuntimeException(e);
-                    }
-
-                    client.connect();
-
-                    LOGGER.debug("Websocket connected.");
-                }).join();
+                connectWebsoket(server);
             } catch (java.net.URISyntaxException u) {
                 u.printStackTrace();
             }
@@ -274,7 +291,7 @@ public class Main implements DedicatedServerModInitializer {
             return true;
         }
         if (response.statusCode() != 200) {
-            LOGGER.error("Failed to send player data to Kromer: " + response.body());
+            LOGGER.error(String.format("Failed to send player data to Kromer, S: %d, B: %S", response.statusCode(), response.body()));
             return true;
         }
         if (response.body() == null) {
