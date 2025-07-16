@@ -6,6 +6,7 @@ import cc.reconnected.kromer.responses.TransactionCreateResponse;
 import cc.reconnected.kromer.responses.errors.GenericError;
 import com.google.gson.Gson;
 import com.google.gson.JsonObject;
+import com.google.gson.JsonSyntaxException;
 import com.mojang.authlib.GameProfile;
 import com.mojang.brigadier.Command;
 import com.mojang.brigadier.CommandDispatcher;
@@ -194,7 +195,13 @@ public class PayCommand {
             }
 
             if (response.statusCode() != 200) {
-                GenericError error = new Gson().fromJson(response.body(), GenericError.class);
+                GenericError error;
+                try {
+                    error = new Gson().fromJson(response.body(), GenericError.class);
+                } catch (JsonSyntaxException jse) {
+                    context.getSource().sendFeedback(() -> Text.literal("Transaction failed, status code: " + response.statusCode()).formatted(Formatting.RED), false);
+                    return;
+                }
                 context.getSource().sendFeedback(() -> Text.literal("Transaction failed: " + error.error + " (" + error.parameter + ")").formatted(Formatting.RED), false);
                 return;
             }
