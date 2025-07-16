@@ -176,7 +176,8 @@ public class PayCommand {
         obj.addProperty("to", payment.to);
         obj.addProperty("amount", payment.amount);
         obj.addProperty("metadata", payment.metadata);
-
+        System.out.println("transaction " + obj.toString());
+        System.out.println("url " + Kromer.config.KromerURL() + "api/krist/transactions");
         HttpRequest request;
         try {
             request = HttpRequest.newBuilder()
