@@ -41,6 +41,7 @@ public class KromerClient extends WebSocketClient {
         for (int i = 0; i < Kromer.welfareQueued; i++) {
             Kromer.executeWelfare();
         }
+        Kromer.welfareQueued = 0;
     }
 
 
