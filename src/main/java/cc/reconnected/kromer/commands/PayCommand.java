@@ -29,6 +29,8 @@ import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.util.HashMap;
+import java.util.Map;
 
 public class PayCommand {
     public static void register(CommandDispatcher<ServerCommandSource> dispatcher, CommandRegistryAccess registryAccess, CommandManager.RegistrationEnvironment environment) {
@@ -43,6 +45,21 @@ public class PayCommand {
                 );
 
         dispatcher.register(rootCommand);
+    }
+
+    public static String toSemicolonString(Map<String, Object> data) {
+        StringBuilder builder = new StringBuilder();
+        for (Map.Entry<String, Object> entry : data.entrySet()) {
+            builder.append(entry.getKey())
+                    .append("=")
+                    .append(entry.getValue())
+                    .append(";");
+        }
+        // Remove trailing semicolon
+        if (!builder.isEmpty()) {
+            builder.setLength(builder.length() - 1);
+        }
+        return builder.toString();
     }
 
 
@@ -62,10 +79,6 @@ public class PayCommand {
         Float rawAmount = FloatArgumentType.getFloat(context, "amount");
         float amount = Math.round(rawAmount * 100f) / 100f;
 
-        String metadata = null;
-        if (context.getNodes().size() > 3) { // 3 nodes: "pay", "player", "amount", and optionally "metadata" 
-            metadata = StringArgumentType.getString(context, "metadata");
-        }
 
         ServerPlayerEntity thisPlayer = context.getSource().getPlayer();
 
@@ -80,6 +93,16 @@ public class PayCommand {
         if(otherWallet == null) {
             context.getSource().sendFeedback(() -> Text.literal("Other user does not have a wallet. They haven't joined recently.").formatted(Formatting.RED), false);
             return 0;
+        }
+
+        Map<String, Object> data = new HashMap<>();
+        data.put("return", wallet.address);
+        data.put("username", thisPlayer.getName());
+        data.put("useruuid", thisPlayer.getUuid());
+        String metadata = toSemicolonString(data);
+
+        if (context.getNodes().size() > 3) { // 3 nodes: "pay", "player", "amount", and optionally "metadata"
+            metadata += StringArgumentType.getString(context, "metadata");
         }
 
         JsonObject obj = new JsonObject();
