@@ -51,6 +51,7 @@ public class Kromer implements DedicatedServerModInitializer {
     public static HttpClient httpclient = HttpClient.newHttpClient();
     private static KromerClient client;
     public static MiniMessage mm = MiniMessage.miniMessage();
+    public static Boolean kromerStatus = false;
 
     public static void connectWebsoket(MinecraftServer server) throws URISyntaxException {
         LOGGER.debug("Connecting to Websocket..");

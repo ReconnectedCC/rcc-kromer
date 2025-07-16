@@ -33,6 +33,11 @@ public class BalanceCommand {
 
         Wallet wallet = Kromer.database.getWallet(player.getUuid());
 
+        if(!Kromer.kromerStatus) {
+            context.getSource().sendFeedback(() -> Text.literal("Kromer is currently unavailable.").formatted(Formatting.RED), false);
+            return 0;
+        }
+
         if (wallet == null) {
             context.getSource().sendFeedback(() -> Text.literal("You do not have a wallet. This should be impossible. Rejoin/contact a staff member.").formatted(Formatting.RED), false);
             return 0;

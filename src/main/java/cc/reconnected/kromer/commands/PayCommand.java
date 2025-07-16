@@ -74,6 +74,11 @@ public class PayCommand {
             return 0;
         }
 
+        if(!Kromer.kromerStatus) {
+            context.getSource().sendFeedback(() -> Text.literal("Kromer is currently unavailable.").formatted(Formatting.RED), false);
+            return 0;
+        }
+
         Float rawAmount = FloatArgumentType.getFloat(context, "amount");
         float amount = Math.round(rawAmount * 100f) / 100f;
 

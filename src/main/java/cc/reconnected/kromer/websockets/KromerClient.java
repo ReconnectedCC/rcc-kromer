@@ -36,6 +36,7 @@ public class KromerClient extends WebSocketClient {
         Kromer.LOGGER.debug("[WS] Websocket opened!");
         this.send(new Gson().toJson(new SubscribeEvent("transactions", 0)));
         this.send(new Gson().toJson(new SubscribeEvent("names", 1)));
+        Kromer.kromerStatus = true;
     }
 
 
@@ -82,6 +83,8 @@ public class KromerClient extends WebSocketClient {
     public void onClose(int code, String reason, boolean remote) {
         Kromer.LOGGER.warn("[WS] WebSocket closed: " + reason + " (code=" + code + ")");
         tryReconnect();
+        Kromer.kromerStatus = false;
+
     }
 
     @Override
@@ -89,6 +92,8 @@ public class KromerClient extends WebSocketClient {
         Kromer.LOGGER.error("[WS] WebSocket error: ", ex);
         if (!isOpen()) {
             tryReconnect();
+            Kromer.kromerStatus = false;
+
         }
     }
 
