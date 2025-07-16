@@ -246,7 +246,7 @@ public class Main implements DedicatedServerModInitializer {
             Transaction[] array = {};
             Wallet wallet = new Wallet(walletResponse.address, walletResponse.password, array, array);
             database.setWallet(uuid, wallet);
-            if(kroAmount != 0) {
+            if (kroAmount != 0) {
                 Main.giveMoney(wallet, kroAmount);
             }
         }).join();

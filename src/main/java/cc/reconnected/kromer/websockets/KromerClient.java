@@ -19,6 +19,9 @@ import java.util.*;
 
 public class KromerClient extends WebSocketClient {
     public MinecraftServer server;
+    private static final int MAX_RECONNECT_ATTEMPTS = 10;
+
+    private int reconnectAttempts = 0;
     public KromerClient(URI serverUri, Draft draft) {
         super(serverUri, draft);
     }
@@ -31,7 +34,8 @@ public class KromerClient extends WebSocketClient {
 
     @Override
     public void onOpen(ServerHandshake handshakedata) {
-        Main.LOGGER.debug("Websocket opened!");
+        Main.LOGGER.debug("[WS] Websocket opened!");
+        reconnectAttempts = 0;
         this.send(new Gson().toJson(new SubscribeEvent("transactions", 0)));
         this.send(new Gson().toJson(new SubscribeEvent("names", 1)));
     }
@@ -78,13 +82,42 @@ public class KromerClient extends WebSocketClient {
 
     @Override
     public void onClose(int code, String reason, boolean remote) {
-        Main.LOGGER.error("Websocket was closed for reason: " + reason +" (C:"+code+").");
+        Main.LOGGER.warn("[WS] WebSocket closed: " + reason + " (code=" + code + ")");
+        tryReconnect();
     }
-
 
     @Override
     public void onError(Exception ex) {
-        Main.LOGGER.error("A error occured within the websocket: " + ex);
+        Main.LOGGER.error("[WS] WebSocket error: ", ex);
+        if (!isOpen()) {
+            tryReconnect();
+        }
     }
 
+    private void tryReconnect() {
+        if (reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
+            Main.LOGGER.error("[WS] Max reconnect attempts reached.");
+            return;
+        }
+
+        long delay = 2000 * (1L << reconnectAttempts); // exponential backoff
+        reconnectAttempts++;
+
+        Main.LOGGER.info("[WS] Reconnecting in " + delay + " ms (attempt " + reconnectAttempts + ")");
+
+        new Timer("WebSocket-Reconnect", true).schedule(new TimerTask() {
+            @Override
+            public void run() {
+                if (!isOpen()) {
+                    Main.LOGGER.info("[WS] Attempting reconnect (attempt " + reconnectAttempts + ")");
+                    try {
+                        connect(); // Non-blocking
+                    } catch (Exception e) {
+                        Main.LOGGER.error("[WS] Reconnect failed: ", e);
+                        tryReconnect(); // Schedule next attempt
+                    }
+                }
+            }
+        }, delay);
+    }
 }

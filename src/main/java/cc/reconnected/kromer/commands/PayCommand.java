@@ -36,7 +36,6 @@ public class PayCommand {
                 .then(argument("player", GameProfileArgumentType.gameProfile()) // pay <player>
                     .then(argument("amount", FloatArgumentType.floatArg()) // pay <player> <amount>
                             .executes(PayCommand::executePay) // pay <player> <amount>
-
                             .then(argument("metadata", StringArgumentType.greedyString())
                                     .executes(PayCommand::executePay)) // pay <player> <amount> [metadata]
 
