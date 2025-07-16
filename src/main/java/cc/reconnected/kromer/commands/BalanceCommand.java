@@ -34,6 +34,7 @@ public class BalanceCommand {
             Wallet wallet = Main.database.getWallet(player.getUuid());
 
             if(wallet == null) {
+                context.getSource().sendFeedback(() -> Text.literal("You do not have a wallet. This should be impossible. Rejoin/contact a staff member.").formatted(Formatting.RED), false);
                 return 0;
             }
 
@@ -46,7 +47,8 @@ public class BalanceCommand {
             }
 
             Main.httpclient.sendAsync(request, HttpResponse.BodyHandlers.ofString()).whenComplete((response, throwable) -> {
-                errorHandler(response, throwable);
+                if(errorHandler(response, throwable)) return;
+
                 GetAddressResponse addressResponse = new Gson().fromJson(response.body(), GetAddressResponse.class);
                 var feedback = String.format("Your balance is: %.2f", addressResponse.address.balance);
                 source.sendFeedback(() -> Text.literal(feedback).formatted(Formatting.GREEN), false);

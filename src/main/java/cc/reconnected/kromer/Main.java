@@ -226,7 +226,7 @@ public class Main implements DedicatedServerModInitializer {
 
         if(kroAmount != 0 && player != null) {
             player.sendMessage(
-                    Text.literal("You have recieved: ").formatted(Formatting.DARK_GREEN)
+                    Text.literal("You have recieved: ").formatted(Formatting.GREEN)
                             .append(Text.literal((kroAmount)+"KRO").formatted(Formatting.DARK_GREEN))
                             .append(Text.literal(" for your playtime!").formatted(Formatting.GREEN))
             );
@@ -270,7 +270,7 @@ public class Main implements DedicatedServerModInitializer {
     }
     public static Boolean errorHandler(HttpResponse<String> response, Throwable throwable) {
         if (throwable != null) {
-            LOGGER.error("Failed to send player data to Kromer", throwable);
+            LOGGER.error(String.format("Failed to send player data to Kromer, C: %s, M: %s", throwable.getCause(), throwable.getMessage()));
             return true;
         }
         if (response.statusCode() != 200) {
