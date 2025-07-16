@@ -1,3 +1,5 @@
+// hi
+
 package cc.reconnected.kromer;
 
 import cc.reconnected.kromer.commands.BalanceCommand;
