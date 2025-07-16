@@ -52,6 +52,7 @@ public class Kromer implements DedicatedServerModInitializer {
     private static KromerClient client;
     public static MiniMessage mm = MiniMessage.miniMessage();
     public static Boolean kromerStatus = false;
+    public static int welfareQueued = 0;
 
     public static void connectWebsoket(MinecraftServer server) throws URISyntaxException {
         LOGGER.debug("Connecting to Websocket..");
@@ -125,6 +126,10 @@ public class Kromer implements DedicatedServerModInitializer {
 
         scheduler.scheduleAtFixedRate(new Runnable() {
             public void run() {
+                if(!Kromer.kromerStatus) {
+                    welfareQueued++;
+                    return;
+                }
                 Kromer.executeWelfare();
             }
         }, initialDelay, oneHour, TimeUnit.SECONDS);

@@ -37,6 +37,10 @@ public class KromerClient extends WebSocketClient {
         this.send(new Gson().toJson(new SubscribeEvent("transactions", 0)));
         this.send(new Gson().toJson(new SubscribeEvent("names", 1)));
         Kromer.kromerStatus = true;
+
+        for (int i = 0; i < Kromer.welfareQueued; i++) {
+            Kromer.executeWelfare();
+        }
     }
 
 
