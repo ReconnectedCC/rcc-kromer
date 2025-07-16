@@ -22,11 +22,11 @@ import static net.minecraft.server.command.CommandManager.literal;
 
 public class BalanceCommand {
     public static void register(CommandDispatcher<ServerCommandSource> dispatcher, CommandRegistryAccess registryAccess, CommandManager.RegistrationEnvironment environment) {
-        dispatcher.register(literal("balance").executes(BalanceCommand::runPay));
-        dispatcher.register(literal("bal").executes(BalanceCommand::runPay));
+        dispatcher.register(literal("balance").executes(BalanceCommand::runBalance));
+        dispatcher.register(literal("bal").executes(BalanceCommand::runBalance));
     }
 
-    private static int runPay(CommandContext<ServerCommandSource> context) {
+    private static int runBalance(CommandContext<ServerCommandSource> context) {
             var source = context.getSource();
             var player = source.getPlayer();
             assert player != null;

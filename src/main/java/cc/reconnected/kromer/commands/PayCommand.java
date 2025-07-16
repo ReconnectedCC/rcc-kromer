@@ -59,7 +59,9 @@ public class PayCommand {
             return 0;
         }
 
-        Float amount = FloatArgumentType.getFloat(context, "amount");
+        Float rawAmount = FloatArgumentType.getFloat(context, "amount");
+        float amount = Math.round(rawAmount * 100f) / 100f;
+
         String metadata = null;
         if (context.getNodes().size() > 3) { // 3 nodes: "pay", "player", "amount", and optionally "metadata" 
             metadata = StringArgumentType.getString(context, "metadata");
