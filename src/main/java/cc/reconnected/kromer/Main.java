@@ -56,6 +56,7 @@ public class Main implements DedicatedServerModInitializer {
     public static RccKromerConfig config;
     public static HttpClient httpclient = HttpClient.newHttpClient();
     private static KromerClient client;
+    
     public void onInitializeServer() {
         ServerLifecycleEvents.SERVER_STARTED.register((server) -> {
             try {

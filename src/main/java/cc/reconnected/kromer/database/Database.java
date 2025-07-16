@@ -61,7 +61,6 @@ public class Database {
                 stmt.close();
             }
         } catch (SQLException e) {
-            // Fail silently, return nothing
             e.printStackTrace();
         }
     }

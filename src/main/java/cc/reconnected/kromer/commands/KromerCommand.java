@@ -72,11 +72,12 @@ public class KromerCommand {
                         .then(argument("amount", IntegerArgumentType.integer())
                             .requires(source -> source.hasPermissionLevel(4))
                             .executes(context -> {
-                                //check if word is a player name
                                 ServerPlayerEntity player = EntityArgumentType.getPlayer(context, "player");
-                                Integer amount = IntegerArgumentType.getInteger(context, "amount");
+                                int amount = IntegerArgumentType.getInteger(context, "amount");
 
                                 Main.giveMoney(Main.database.getWallet(player.getUuid()), amount);
+                                var feedback = String.format("Added money %d KOR to %s.", amount, player.getEntityName());
+                                context.getSource().sendFeedback(() -> Text.literal(feedback).formatted(Formatting.YELLOW), false);
                                 return 1;
                             })
                         )

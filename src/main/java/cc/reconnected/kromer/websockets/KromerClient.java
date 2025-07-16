@@ -3,6 +3,9 @@ package cc.reconnected.kromer.websockets;
 import cc.reconnected.kromer.Main;
 import cc.reconnected.kromer.database.Wallet;
 import cc.reconnected.kromer.responses.Transaction;
+import cc.reconnected.kromer.websockets.events.GenericEvent;
+import cc.reconnected.kromer.websockets.events.SubscribeEvent;
+import cc.reconnected.kromer.websockets.events.TransactionEvent;
 import com.google.gson.Gson;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.network.ServerPlayerEntity;
@@ -11,10 +14,7 @@ import org.java_websocket.client.WebSocketClient;
 import org.java_websocket.drafts.Draft;
 import org.java_websocket.handshake.ServerHandshake;
 
-import javax.xml.crypto.dsig.TransformService;
 import java.net.URI;
-import java.net.URISyntaxException;
-import java.nio.ByteBuffer;
 import java.util.*;
 
 public class KromerClient extends WebSocketClient {

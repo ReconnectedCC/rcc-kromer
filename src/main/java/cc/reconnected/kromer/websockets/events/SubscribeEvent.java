@@ -1,4 +1,4 @@
-package cc.reconnected.kromer.websockets;
+package cc.reconnected.kromer.websockets.events;
 
 public class SubscribeEvent extends GenericEvent {
     public int id;

@@ -1,4 +1,4 @@
-package cc.reconnected.kromer.websockets;
+package cc.reconnected.kromer.websockets.events;
 
 import cc.reconnected.kromer.responses.Transaction;
 
