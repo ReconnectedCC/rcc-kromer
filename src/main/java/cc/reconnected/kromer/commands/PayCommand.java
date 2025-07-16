@@ -172,7 +172,7 @@ public class PayCommand {
         }
 
         JsonObject obj = new JsonObject();
-        obj.addProperty("password", wallet.password);
+        obj.addProperty("privatekey", wallet.privatekey);
         obj.addProperty("to", payment.to);
         obj.addProperty("amount", payment.amount);
         obj.addProperty("metadata", payment.metadata);

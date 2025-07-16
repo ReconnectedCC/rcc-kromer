@@ -5,6 +5,7 @@ import cc.reconnected.kromer.database.Wallet;
 import cc.reconnected.kromer.database.WelfareData;
 import cc.reconnected.kromer.responses.MotdResponse;
 import com.google.gson.Gson;
+import com.mojang.brigadier.Command;
 import com.mojang.brigadier.CommandDispatcher;
 import com.mojang.brigadier.arguments.IntegerArgumentType;
 import me.alexdevs.solstice.Solstice;
@@ -22,6 +23,7 @@ import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.util.Objects;
 
 import static net.minecraft.server.command.CommandManager.argument;
 import static net.minecraft.server.command.CommandManager.literal;
@@ -60,8 +62,8 @@ public class KromerCommand {
                     .append(Text.literal(wallet.address).formatted(Formatting.GOLD).styled(f -> f.withClickEvent(new ClickEvent(ClickEvent.Action.COPY_TO_CLIPBOARD, wallet.address))))
                     .append(Text.literal(" (click to copy!)").formatted(Formatting.GRAY)), false);
 
-            context.getSource().sendFeedback(() -> Text.literal("Password: ").formatted(Formatting.YELLOW)
-                    .append(Text.literal(wallet.password).formatted(Formatting.GOLD).styled(f -> f.withClickEvent(new ClickEvent(ClickEvent.Action.COPY_TO_CLIPBOARD, wallet.password))))
+            context.getSource().sendFeedback(() -> Text.literal("privatekey: ").formatted(Formatting.YELLOW)
+                    .append(Text.literal(wallet.privatekey).formatted(Formatting.GOLD).styled(f -> f.withClickEvent(new ClickEvent(ClickEvent.Action.COPY_TO_CLIPBOARD, wallet.privatekey))))
                     .append(Text.literal(" (click to copy!)").formatted(Formatting.GRAY)), false);
 
             if(!Kromer.kromerStatus) {
@@ -69,7 +71,7 @@ public class KromerCommand {
                 context.getSource().sendFeedback(() -> Text.literal("WARNING: Kromer is currently down!").formatted(Formatting.YELLOW), false);
                 return 0;
             }
-            return 1;
+            return Command.SINGLE_SUCCESS;
         });
 
         var giveWalletCommand = literal("givewallet")
@@ -83,7 +85,7 @@ public class KromerCommand {
                                 return 0;
                             }
                             Kromer.firstLogin(player.getEntityName(), player.getUuid(), player);
-                            return 1;
+                            return Command.SINGLE_SUCCESS;
                         })
                 );
 
@@ -99,7 +101,7 @@ public class KromerCommand {
                                     Kromer.giveMoney(Kromer.database.getWallet(player.getUuid()), amount);
                                     var feedback = String.format("Added %dKRO to %s.", amount, player.getEntityName());
                                     context.getSource().sendFeedback(() -> Text.literal(feedback).formatted(Formatting.YELLOW), false);
-                                    return 1;
+                                    return Command.SINGLE_SUCCESS;
                                 })
                         )
                 );
@@ -107,11 +109,11 @@ public class KromerCommand {
                 .requires(source -> source.hasPermissionLevel(4))
                 .executes(context -> {
                     Kromer.executeWelfare();
-                    return 1;
+                    return Command.SINGLE_SUCCESS;
                 });
 
         var muteWelfare = literal("muteWelfare").executes(context -> {
-            WelfareData welfareData = Solstice.playerData.get(context.getSource().getPlayer().getUuid()).getData(WelfareData.class);
+            WelfareData welfareData = Solstice.playerData.get(Objects.requireNonNull(context.getSource().getPlayer()).getUuid()).getData(WelfareData.class);
 
             if(welfareData.welfareMuted) {
                 context.getSource().sendFeedback(() -> Text.literal("Welfare notifications are no longer muted.").formatted(Formatting.GREEN), false);
@@ -120,7 +122,7 @@ public class KromerCommand {
             }
 
             welfareData.welfareMuted = !welfareData.welfareMuted;
-            return 1;
+            return Command.SINGLE_SUCCESS;
         });
 
         var optOutOfWelfare = literal("optOut")

@@ -52,6 +52,7 @@ public class Kromer implements DedicatedServerModInitializer {
     private static KromerClient client;
 
     public static Boolean kromerStatus = false;
+    public static String currencyName = "KRO";
     public static int welfareQueued = 0;
 
     public static void connectWebsoket(MinecraftServer server) throws URISyntaxException {
@@ -80,10 +81,9 @@ public class Kromer implements DedicatedServerModInitializer {
 
                 return;
             }
-            ;
 
             WebsocketStartResponse resp = new Gson().fromJson(response.body(), WebsocketStartResponse.class);
-            LOGGER.debug("Websocket URL found: " + resp.url);
+            LOGGER.debug("Websocket URL found: {}", resp.url);
 
             try {
                 client = new KromerClient(new URI(resp.url), server);
@@ -125,15 +125,12 @@ public class Kromer implements DedicatedServerModInitializer {
 
         long initialDelay = getDelayUntilNextHourInSeconds();
         long oneHour = 3600; // seconds
-
-        scheduler.scheduleAtFixedRate(new Runnable() {
-            public void run() {
-                if(!Kromer.kromerStatus) {
-                    welfareQueued++;
-                    return;
-                }
-                Kromer.executeWelfare();
+        scheduler.scheduleAtFixedRate(() -> {
+            if(!Kromer.kromerStatus) {
+                welfareQueued++;
+                return;
             }
+            Kromer.executeWelfare();
         }, initialDelay, oneHour, TimeUnit.SECONDS);
     }
 
@@ -171,13 +168,13 @@ public class Kromer implements DedicatedServerModInitializer {
         Pair<UUID, Wallet> fromWallet = database.getWallet(userName);
 
         if (fromWallet != null) {
-            Optional<GameProfile> gf = client.server.getUserCache().getByUuid(fromWallet.getLeft());
+            Optional<GameProfile> gf = Objects.requireNonNull(client.server.getUserCache()).getByUuid(fromWallet.getLeft());
             if (gf.isPresent()) {
                 userName = gf.get().getName();
             }
         }
 
-        Boolean found = !Objects.equals(userName, address);
+        boolean found = !Objects.equals(userName, address);
 
         return found ? String.format("%s (%s)", userName, address) : address;
     }
@@ -269,7 +266,7 @@ public class Kromer implements DedicatedServerModInitializer {
             if (errorHandler(response, throwable)) return;
             WalletCreateResponse walletResponse = new Gson().fromJson(response.body(), WalletCreateResponse.class);
             Transaction[] array = {};
-            Wallet wallet = new Wallet(walletResponse.address, walletResponse.password, array, array);
+            Wallet wallet = new Wallet(walletResponse.address, walletResponse.privatekey, array, array);
             database.setWallet(uuid, wallet);
             if (kroAmount != 0) {
                 Kromer.giveMoney(wallet, kroAmount);
@@ -295,11 +292,11 @@ public class Kromer implements DedicatedServerModInitializer {
 
     public static Boolean errorHandler(HttpResponse<String> response, Throwable throwable) {
         if (throwable != null) {
-            LOGGER.error(String.format("Failed to send player data to Kromer, C: %s, M: %s", throwable.getCause(), throwable.getMessage()));
+            LOGGER.error("Failed to send player data to Kromer, C: {}, M: {}", throwable.getCause(), throwable.getMessage());
             return true;
         }
         if (response.statusCode() != 200) {
-            LOGGER.error(String.format("Failed to send player data to Kromer, S: %d, B: %S", response.statusCode(), response.body()));
+            LOGGER.error("Failed to send player data to Kromer, S: {}, B: {}", response.statusCode(), response.body());
             return true;
         }
         if (response.body() == null) {

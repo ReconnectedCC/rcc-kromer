@@ -86,7 +86,7 @@ public class KromerClient extends WebSocketClient {
 
     @Override
     public void onClose(int code, String reason, boolean remote) {
-        Kromer.LOGGER.warn("[WS] WebSocket closed: " + reason + " (code=" + code + ")");
+        Kromer.LOGGER.warn("[WS] WebSocket closed: {} (code={})", reason, code);
         tryReconnect();
         Kromer.kromerStatus = false;
 

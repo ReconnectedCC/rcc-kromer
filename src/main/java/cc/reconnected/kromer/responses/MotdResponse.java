@@ -4,7 +4,7 @@ import com.google.gson.annotations.SerializedName;
 
 
 public class MotdResponse {
-    public class Constants {
+    public static class Constants {
         public int wallet_version;
         public int nonce_max_size;
         public int name_cost;
@@ -21,7 +21,7 @@ public class MotdResponse {
         public String currency_symbol;
     }
 
-    public class Package {
+    public static class Package {
         public String name;
         public String version;
         public String author;
