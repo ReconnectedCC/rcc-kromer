@@ -2,10 +2,12 @@ package cc.reconnected.kromer.commands;
 
 import cc.reconnected.kromer.Kromer;
 import cc.reconnected.kromer.database.Wallet;
+import cc.reconnected.kromer.database.WelfareData;
 import cc.reconnected.kromer.responses.MotdResponse;
 import com.google.gson.Gson;
 import com.mojang.brigadier.CommandDispatcher;
 import com.mojang.brigadier.arguments.IntegerArgumentType;
+import me.alexdevs.solstice.Solstice;
 import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.command.CommandRegistryAccess;
 import net.minecraft.command.argument.EntityArgumentType;
@@ -107,7 +109,20 @@ public class KromerCommand {
                     Kromer.executeWelfare();
                     return 1;
                 });
-        var rootCommand = literal("kromer").then(versionCommand).then(giveWalletCommand).then(setMoneyCommand).then(executeWelfare).then(infoCommand);
+
+        var muteWelfare = literal("muteWelfare").executes(context -> {
+            WelfareData welfareData = Solstice.playerData.get(context.getSource().getPlayer().getUuid()).getData(WelfareData.class);
+
+            if(welfareData.welfareMuted) {
+                context.getSource().sendFeedback(() -> Text.literal("Welfare notifications are no longer muted.").formatted(Formatting.GREEN), false);
+            } else {
+                context.getSource().sendFeedback(() -> Text.literal("Welfare notifications are now muted.").formatted(Formatting.RED), false);
+            }
+
+            welfareData.welfareMuted = !welfareData.welfareMuted;
+            return 1;
+        });
+        var rootCommand = literal("kromer").then(versionCommand).then(giveWalletCommand).then(setMoneyCommand).then(executeWelfare).then(infoCommand).then(muteWelfare);
 
         dispatcher.register(rootCommand);
     }

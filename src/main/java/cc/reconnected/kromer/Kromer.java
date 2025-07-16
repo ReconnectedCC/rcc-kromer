@@ -7,6 +7,7 @@ import cc.reconnected.kromer.commands.KromerCommand;
 import cc.reconnected.kromer.commands.PayCommand;
 import cc.reconnected.kromer.database.Database;
 import cc.reconnected.kromer.database.Wallet;
+import cc.reconnected.kromer.database.WelfareData;
 import cc.reconnected.kromer.responses.Transaction;
 import cc.reconnected.kromer.responses.WalletCreateResponse;
 import cc.reconnected.kromer.responses.WebsocketStartResponse;
@@ -97,6 +98,8 @@ public class Kromer implements DedicatedServerModInitializer {
     }
 
     public void onInitializeServer() {
+        Solstice.playerData.registerData("welfare", WelfareData.class, WelfareData::new);
+
         ServerLifecycleEvents.SERVER_STARTED.register((server) -> {
             try {
                 connectWebsoket(server);
@@ -155,10 +158,11 @@ public class Kromer implements DedicatedServerModInitializer {
             Wallet wallet = Kromer.database.getWallet(p.getUuid());
             if (wallet == null) return;
             Kromer.giveMoney(wallet, finalWelfare);
-
-            p.sendMessage(
-                    Text.literal("Thanks for playing! You've been given your welfare of " + finalWelfare + "KRO!").formatted(Formatting.GRAY)
-            );
+            if(!Solstice.playerData.get(p.getUuid()).getData(WelfareData.class).welfareMuted) {
+                p.sendMessage(
+                        Text.literal("Thanks for playing! You've been given your welfare of " + finalWelfare + "KRO!").formatted(Formatting.GRAY)
+                );
+            }
         });
     }
 
