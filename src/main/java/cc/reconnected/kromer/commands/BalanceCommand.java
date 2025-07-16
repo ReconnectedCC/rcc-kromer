@@ -5,6 +5,7 @@ import cc.reconnected.kromer.database.Wallet;
 import cc.reconnected.kromer.responses.GetAddressResponse;
 import com.google.gson.Gson;
 import com.mojang.brigadier.CommandDispatcher;
+import com.mojang.brigadier.context.CommandContext;
 import net.minecraft.command.CommandRegistryAccess;
 import net.minecraft.server.command.CommandManager;
 import net.minecraft.server.command.ServerCommandSource;
@@ -21,7 +22,11 @@ import static net.minecraft.server.command.CommandManager.literal;
 
 public class BalanceCommand {
     public static void register(CommandDispatcher<ServerCommandSource> dispatcher, CommandRegistryAccess registryAccess, CommandManager.RegistrationEnvironment environment) {
-        var rootCommand = literal("balance").executes(context -> {
+        dispatcher.register(literal("balance").executes(BalanceCommand::runPay));
+        dispatcher.register(literal("bal").executes(BalanceCommand::runPay));
+    }
+
+    private static int runPay(CommandContext<ServerCommandSource> context) {
             var source = context.getSource();
             var player = source.getPlayer();
             assert player != null;
@@ -43,13 +48,10 @@ public class BalanceCommand {
             Main.httpclient.sendAsync(request, HttpResponse.BodyHandlers.ofString()).whenComplete((response, throwable) -> {
                 errorHandler(response, throwable);
                 GetAddressResponse addressResponse = new Gson().fromJson(response.body(), GetAddressResponse.class);
-                var feedback = String.format("Your balance is: %f", addressResponse.address.balance);
+                var feedback = String.format("Your balance is: %.2f", addressResponse.address.balance);
                 source.sendFeedback(() -> Text.literal(feedback).formatted(Formatting.GREEN), false);
             }).join();
 
             return 1;
-        });
-
-        dispatcher.register(rootCommand);
     }
 }

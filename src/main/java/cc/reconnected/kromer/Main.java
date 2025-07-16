@@ -221,7 +221,9 @@ public class Main implements DedicatedServerModInitializer {
 
         // Retroactive KRO giving
         AfkPlayerData solsticeData = Solstice.modules.getModule(AfkModule.class).getPlayerData(uuid);
-        float kroAmount = (float) (((double) solsticeData.activeTime / 3600) * config.HourlyWelfare());
+        float kroAmountRaw = (float) (((double) solsticeData.activeTime / 3600) * config.HourlyWelfare());
+        float kroAmount = Math.round(kroAmountRaw * 100f) / 100f;
+
         if(kroAmount != 0 && player != null) {
             player.sendMessage(
                     Text.literal("You have recieved: ").formatted(Formatting.DARK_GREEN)
