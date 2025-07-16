@@ -97,12 +97,12 @@ public class PayCommand {
 
         Map<String, Object> data = new HashMap<>();
         data.put("return", wallet.address);
-        data.put("username", thisPlayer.getName());
+        data.put("username", thisPlayer.getEntityName());
         data.put("useruuid", thisPlayer.getUuid());
         String metadata = toSemicolonString(data);
 
         if (context.getNodes().size() > 3) { // 3 nodes: "pay", "player", "amount", and optionally "metadata"
-            metadata += StringArgumentType.getString(context, "metadata");
+            metadata += ";" + StringArgumentType.getString(context, "metadata");
         }
 
         JsonObject obj = new JsonObject();
