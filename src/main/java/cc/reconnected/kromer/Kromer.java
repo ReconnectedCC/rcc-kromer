@@ -22,7 +22,6 @@ import net.fabricmc.api.DedicatedServerModInitializer;
 import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents;
-import net.kyori.adventure.text.minimessage.MiniMessage;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.text.Text;
@@ -47,10 +46,10 @@ public class Kromer implements DedicatedServerModInitializer {
     public static Logger LOGGER = LoggerFactory.getLogger("rcc-kromer");
     public static Database database = new Database();
 
-    public static RccKromerConfig config;
+    public static cc.reconnected.kromer.RccKromerConfig config;
     public static HttpClient httpclient = HttpClient.newHttpClient();
     private static KromerClient client;
-    public static MiniMessage mm = MiniMessage.miniMessage();
+
     public static Boolean kromerStatus = false;
     public static int welfareQueued = 0;
 
@@ -117,7 +116,7 @@ public class Kromer implements DedicatedServerModInitializer {
         CommandRegistrationCallback.EVENT.register(BalanceCommand::register);
         CommandRegistrationCallback.EVENT.register(KromerCommand::register);
 
-        config = RccKromerConfig.createAndLoad();
+        config = cc.reconnected.kromer.RccKromerConfig.createAndLoad();
 
         ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
 

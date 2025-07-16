@@ -1,6 +1,7 @@
 package cc.reconnected.kromer.commands;
 
 import cc.reconnected.kromer.Kromer;
+import cc.reconnected.kromer.database.Wallet;
 import cc.reconnected.kromer.responses.MotdResponse;
 import com.google.gson.Gson;
 import com.mojang.brigadier.CommandDispatcher;
@@ -11,6 +12,7 @@ import net.minecraft.command.argument.EntityArgumentType;
 import net.minecraft.server.command.CommandManager;
 import net.minecraft.server.command.ServerCommandSource;
 import net.minecraft.server.network.ServerPlayerEntity;
+import net.minecraft.text.ClickEvent;
 import net.minecraft.text.Text;
 import net.minecraft.util.Formatting;
 
@@ -47,6 +49,26 @@ public class KromerCommand {
             return 1;
         });
 
+        var infoCommand = literal("info").executes(context -> {
+            Wallet wallet = Kromer.database.getWallet(context.getSource().getPlayer().getUuid());
+            if(wallet == null) return 0;
+            context.getSource().sendFeedback(() -> Text.literal("Your kromer information:").formatted(Formatting.GREEN), false);
+
+            context.getSource().sendFeedback(() -> Text.literal("Address: ").formatted(Formatting.YELLOW)
+                    .append(Text.literal(wallet.address).formatted(Formatting.GOLD).styled(f -> f.withClickEvent(new ClickEvent(ClickEvent.Action.COPY_TO_CLIPBOARD, wallet.address))))
+                    .append(Text.literal(" (click to copy!)").formatted(Formatting.GRAY)), false);
+
+            context.getSource().sendFeedback(() -> Text.literal("Password: ").formatted(Formatting.YELLOW)
+                    .append(Text.literal(wallet.password).formatted(Formatting.GOLD).styled(f -> f.withClickEvent(new ClickEvent(ClickEvent.Action.COPY_TO_CLIPBOARD, wallet.password))))
+                    .append(Text.literal(" (click to copy!)").formatted(Formatting.GRAY)), false);
+
+            if(!Kromer.kromerStatus) {
+                context.getSource().sendFeedback(Text::empty, false);
+                context.getSource().sendFeedback(() -> Text.literal("WARNING: Kromer is currently down!").formatted(Formatting.YELLOW), false);
+                return 0;
+            }
+            return 1;
+        });
 
         var giveWalletCommand = literal("givewallet")
                 .then(argument("player", EntityArgumentType.player()).requires(source -> source.hasPermissionLevel(4))
@@ -85,7 +107,7 @@ public class KromerCommand {
                     Kromer.executeWelfare();
                     return 1;
                 });
-        var rootCommand = literal("kromer").then(versionCommand).then(giveWalletCommand).then(setMoneyCommand).then(executeWelfare);
+        var rootCommand = literal("kromer").then(versionCommand).then(giveWalletCommand).then(setMoneyCommand).then(executeWelfare).then(infoCommand);
 
         dispatcher.register(rootCommand);
     }
