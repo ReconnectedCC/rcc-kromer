@@ -26,6 +26,7 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 import static net.minecraft.server.command.CommandManager.argument;
 import static net.minecraft.server.command.CommandManager.literal;
@@ -46,18 +47,9 @@ public class PayCommand {
     }
 
     public static String toSemicolonString(Map<String, Object> data) {
-        StringBuilder builder = new StringBuilder();
-        for (Map.Entry<String, Object> entry : data.entrySet()) {
-            builder.append(entry.getKey())
-                    .append("=")
-                    .append(entry.getValue())
-                    .append(";");
-        }
-        // Remove trailing semicolon
-        if (!builder.isEmpty()) {
-            builder.setLength(builder.length() - 1);
-        }
-        return builder.toString();
+        return data.entrySet().stream()
+                .map(e -> e.getKey() + "=" + e.getValue())
+                .collect(Collectors.joining(";"));
     }
 
 
