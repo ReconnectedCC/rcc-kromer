@@ -7,6 +7,7 @@ import cc.reconnected.kromer.responses.errors.GenericError;
 import com.google.gson.Gson;
 import com.google.gson.JsonObject;
 import com.mojang.authlib.GameProfile;
+import com.mojang.brigadier.Command;
 import com.mojang.brigadier.CommandDispatcher;
 import com.mojang.brigadier.arguments.FloatArgumentType;
 import com.mojang.brigadier.arguments.StringArgumentType;
@@ -26,21 +27,32 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
 import static net.minecraft.server.command.CommandManager.argument;
 import static net.minecraft.server.command.CommandManager.literal;
 
 public class PayCommand {
+    private static final Map<UUID, PendingPayment> pendingPayments = new HashMap<>();
+
+    private static class PendingPayment {
+        String to;
+        float amount;
+        String metadata;
+        long createdAt; // in milliseconds
+    }
+
+
     public static void register(CommandDispatcher<ServerCommandSource> dispatcher, CommandRegistryAccess registryAccess, CommandManager.RegistrationEnvironment environment) {
-        var rootCommand = literal("pay")
+        dispatcher.register(literal("confirm_pay").executes(PayCommand::confirmPay));
+
+        dispatcher.register(literal("pay")
                 .then(argument("recipient", StringArgumentType.word())
                         .then(argument("amount", FloatArgumentType.floatArg())
                                 .executes(PayCommand::executePay)
                                 .then(argument("metadata", StringArgumentType.greedyString())
-                                        .executes(PayCommand::executePay))));
-
-        dispatcher.register(rootCommand);
+                                        .executes(PayCommand::executePay)))));
     }
 
     public static String toSemicolonString(Map<String, Object> data) {
@@ -51,6 +63,9 @@ public class PayCommand {
 
 
     private static int executePay(CommandContext<ServerCommandSource> context) {
+
+        pendingPayments.remove(context.getSource().getPlayer().getUuid());
+
         String recipientInput = StringArgumentType.getString(context, "recipient");
         String kristAddress = null;
         String recipientName = null;
@@ -86,7 +101,7 @@ public class PayCommand {
             recipientName = otherProfile.getName();
         }
 
-        Float rawAmount = FloatArgumentType.getFloat(context, "amount");
+        float rawAmount = FloatArgumentType.getFloat(context, "amount");
         float amount = Math.round(rawAmount * 100f) / 100f;
 
 
@@ -109,17 +124,62 @@ public class PayCommand {
             metadata += ";" + StringArgumentType.getString(context, "metadata");
         }
 
+        PendingPayment payment = new PendingPayment();
+        payment.to = kristAddress;
+        payment.amount = amount;
+        payment.metadata = metadata;
+        payment.createdAt = System.currentTimeMillis();
+
+        pendingPayments.put(thisPlayer.getUuid(), payment);
+
+        String finalRecipientName = recipientName;
+        Text confirmButton = Text.literal("[Confirm]")
+                .styled(style -> style
+                        .withColor(Formatting.GREEN)
+                        .withBold(true)
+                        .withClickEvent(new net.minecraft.text.ClickEvent(
+                                net.minecraft.text.ClickEvent.Action.RUN_COMMAND, "/confirm_pay"))
+                        .withHoverEvent(new net.minecraft.text.HoverEvent(
+                                net.minecraft.text.HoverEvent.Action.SHOW_TEXT,
+                                Text.literal("Click to confirm payment of " + amount + "KRO to " + finalRecipientName))));
+
+        context.getSource().sendFeedback(() ->
+                Text.literal("Are you sure you want to send ").formatted(Formatting.GREEN)
+                        .append(Text.literal(amount + "KRO ").formatted(Formatting.DARK_GREEN))
+                        .append(Text.literal("to ").formatted(Formatting.GREEN))
+                        .append(Text.literal(finalRecipientName).formatted(Formatting.DARK_GREEN))
+                        .append(Text.literal("? ").formatted(Formatting.GREEN))
+                        .append(confirmButton), false);
+        return 1;
+    }
+
+    private static int confirmPay(CommandContext<ServerCommandSource> context) {
+        ServerPlayerEntity player = context.getSource().getPlayer();
+
+        PendingPayment payment = pendingPayments.remove(player.getUuid());
+
+        if (payment == null) {
+            context.getSource().sendFeedback(() -> Text.literal("No pending payment to confirm.").formatted(Formatting.RED), false);
+            return 0;
+        }
+
+        Wallet wallet = Kromer.database.getWallet(player.getUuid());
+
+        if (wallet == null) {
+            context.getSource().sendFeedback(() -> Text.literal("Wallet not found.").formatted(Formatting.RED), false);
+            return 0;
+        }
+
         JsonObject obj = new JsonObject();
         obj.addProperty("password", wallet.password);
-        obj.addProperty("to", kristAddress);
-        obj.addProperty("amount", amount);
-        obj.addProperty("metadata", metadata);
+        obj.addProperty("to", payment.to);
+        obj.addProperty("amount", payment.amount);
+        obj.addProperty("metadata", payment.metadata);
 
         HttpRequest request;
         try {
-            request = HttpRequest.newBuilder().uri(
-                            new URI(Kromer.config.KromerURL() + "api/krist/transactions")
-                    )
+            request = HttpRequest.newBuilder()
+                    .uri(new URI(Kromer.config.KromerURL() + "api/krist/transactions"))
                     .headers("Content-Type", "application/json")
                     .POST(HttpRequest.BodyPublishers.ofString(obj.toString()))
                     .build();
@@ -127,34 +187,27 @@ public class PayCommand {
             throw new RuntimeException(e);
         }
 
-        String finalRecipientName = recipientName;
         Kromer.httpclient.sendAsync(request, HttpResponse.BodyHandlers.ofString()).whenComplete((response, throwable) -> {
             if (throwable != null) {
-                context.getSource().sendFeedback(() -> Text.literal("Encountered issue while attempting to create transaction: " + throwable).formatted(Formatting.RED), false);
-                return;
-            }
-
-            String body = response.body();
-
-            if (body == null) {
-                context.getSource().sendFeedback(() -> Text.literal("Encountered issue while attempting to create transaction: No response body").formatted(Formatting.RED), false);
+                context.getSource().sendFeedback(() -> Text.literal("Error while creating transaction: " + throwable).formatted(Formatting.RED), false);
                 return;
             }
 
             if (response.statusCode() != 200) {
-                GenericError errorResponse = new Gson().fromJson(body, GenericError.class);
-                context.getSource().sendFeedback(() -> Text.literal("Enountered issue while attempting to create transaction (" + errorResponse.error + "): " + errorResponse.parameter).formatted(Formatting.RED), false);
+                GenericError error = new Gson().fromJson(response.body(), GenericError.class);
+                context.getSource().sendFeedback(() -> Text.literal("Transaction failed: " + error.error + " (" + error.parameter + ")").formatted(Formatting.RED), false);
                 return;
             }
 
-            TransactionCreateResponse transactionResponse = new Gson().fromJson(body, TransactionCreateResponse.class);
             context.getSource().sendFeedback(() ->
-                            Text.literal("Sent ").formatted(Formatting.GREEN)
-                                    .append(Text.literal(amount + "KRO ").formatted(Formatting.DARK_GREEN))
-                                    .append(Text.literal("to ").formatted(Formatting.GREEN))
-                                    .append(Text.literal(finalRecipientName + "!").formatted(Formatting.DARK_GREEN))
-                    , false);
+                    Text.literal("Payment of ").formatted(Formatting.GREEN)
+                            .append(Text.literal(payment.amount + "KRO ").formatted(Formatting.DARK_GREEN))
+                            .append(Text.literal("to ").formatted(Formatting.GREEN))
+                            .append(Text.literal(payment.to).formatted(Formatting.DARK_GREEN))
+                            .append(Text.literal(" confirmed.").formatted(Formatting.GREEN)), false);
         }).join();
+
         return 1;
     }
+
 }

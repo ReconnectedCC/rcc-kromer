@@ -166,7 +166,7 @@ public class Kromer implements DedicatedServerModInitializer {
         });
     }
 
-    private static String getNameFromWallet(String address) {
+    public static String getNameFromWallet(String address) {
         String userName = address; // if from is
         Pair<UUID, Wallet> fromWallet = database.getWallet(userName);
 
