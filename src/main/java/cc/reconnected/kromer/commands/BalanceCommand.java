@@ -27,33 +27,33 @@ public class BalanceCommand {
     }
 
     private static int runBalance(CommandContext<ServerCommandSource> context) {
-            var source = context.getSource();
-            var player = source.getPlayer();
-            assert player != null;
+        var source = context.getSource();
+        var player = source.getPlayer();
+        assert player != null;
 
-            Wallet wallet = Kromer.database.getWallet(player.getUuid());
+        Wallet wallet = Kromer.database.getWallet(player.getUuid());
 
-            if(wallet == null) {
-                context.getSource().sendFeedback(() -> Text.literal("You do not have a wallet. This should be impossible. Rejoin/contact a staff member.").formatted(Formatting.RED), false);
-                return 0;
-            }
+        if (wallet == null) {
+            context.getSource().sendFeedback(() -> Text.literal("You do not have a wallet. This should be impossible. Rejoin/contact a staff member.").formatted(Formatting.RED), false);
+            return 0;
+        }
 
-            var url = String.format(Kromer.config.KromerURL() + "api/krist/addresses/%s", wallet.address);
-            HttpRequest request;
-            try {
-                request = HttpRequest.newBuilder().uri(new URI(url)).GET().build();
-            } catch (URISyntaxException e) {
-                throw new RuntimeException(e);
-            }
+        var url = String.format(Kromer.config.KromerURL() + "api/krist/addresses/%s", wallet.address);
+        HttpRequest request;
+        try {
+            request = HttpRequest.newBuilder().uri(new URI(url)).GET().build();
+        } catch (URISyntaxException e) {
+            throw new RuntimeException(e);
+        }
 
-            Kromer.httpclient.sendAsync(request, HttpResponse.BodyHandlers.ofString()).whenComplete((response, throwable) -> {
-                if(errorHandler(response, throwable)) return;
+        Kromer.httpclient.sendAsync(request, HttpResponse.BodyHandlers.ofString()).whenComplete((response, throwable) -> {
+            if (errorHandler(response, throwable)) return;
 
-                GetAddressResponse addressResponse = new Gson().fromJson(response.body(), GetAddressResponse.class);
-                var feedback = String.format("Your balance is: %.2fKRO.", addressResponse.address.balance);
-                source.sendFeedback(() -> Text.literal(feedback).formatted(Formatting.GREEN), false);
-            }).join();
+            GetAddressResponse addressResponse = new Gson().fromJson(response.body(), GetAddressResponse.class);
+            var feedback = String.format("Your balance is: %.2fKRO.", addressResponse.address.balance);
+            source.sendFeedback(() -> Text.literal(feedback).formatted(Formatting.GREEN), false);
+        }).join();
 
-            return 1;
+        return 1;
     }
 }

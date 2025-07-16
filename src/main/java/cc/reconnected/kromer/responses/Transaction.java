@@ -1,7 +1,6 @@
 package cc.reconnected.kromer.responses;
 
 import java.util.Date;
-import java.util.Optional;
 
 public class Transaction {
     public int id;
@@ -9,10 +8,10 @@ public class Transaction {
     public String to;
     public float value;
     public Date time;
-    public String  name;
+    public String name;
     public String metadata;
-    public String  sent_metaname;
-    public String  sent_name;
+    public String sent_metaname;
+    public String sent_name;
     public String type;
 
     public Transaction(String sent_metaname, int id, String from, String to, float value, Date time, String name, String metadata, String sent_name, String type) {

@@ -11,7 +11,6 @@ import com.mojang.brigadier.CommandDispatcher;
 import com.mojang.brigadier.arguments.FloatArgumentType;
 import com.mojang.brigadier.arguments.StringArgumentType;
 import com.mojang.brigadier.context.CommandContext;
-
 import com.mojang.brigadier.exceptions.CommandSyntaxException;
 import net.minecraft.command.CommandRegistryAccess;
 import net.minecraft.command.argument.GameProfileArgumentType;
@@ -21,9 +20,6 @@ import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.text.Text;
 import net.minecraft.util.Formatting;
 
-import static net.minecraft.server.command.CommandManager.argument;
-import static net.minecraft.server.command.CommandManager.literal;
-
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.http.HttpRequest;
@@ -31,16 +27,19 @@ import java.net.http.HttpResponse;
 import java.util.HashMap;
 import java.util.Map;
 
+import static net.minecraft.server.command.CommandManager.argument;
+import static net.minecraft.server.command.CommandManager.literal;
+
 public class PayCommand {
     public static void register(CommandDispatcher<ServerCommandSource> dispatcher, CommandRegistryAccess registryAccess, CommandManager.RegistrationEnvironment environment) {
         var rootCommand = literal("pay") // /pay
                 .then(argument("player", GameProfileArgumentType.gameProfile()) // pay <player>
-                    .then(argument("amount", FloatArgumentType.floatArg()) // pay <player> <amount>
-                            .executes(PayCommand::executePay) // pay <player> <amount>
-                            .then(argument("metadata", StringArgumentType.greedyString())
-                                    .executes(PayCommand::executePay)) // pay <player> <amount> [metadata]
+                        .then(argument("amount", FloatArgumentType.floatArg()) // pay <player> <amount>
+                                .executes(PayCommand::executePay) // pay <player> <amount>
+                                .then(argument("metadata", StringArgumentType.greedyString())
+                                        .executes(PayCommand::executePay)) // pay <player> <amount> [metadata]
 
-                    )
+                        )
                 );
 
         dispatcher.register(rootCommand);
@@ -70,7 +69,7 @@ public class PayCommand {
             throw new RuntimeException(e);
         }
 
-        if(otherProfile == null) {
+        if (otherProfile == null) {
             context.getSource().sendFeedback(() -> Text.literal("User does not exist.").formatted(Formatting.RED), false);
             return 0;
         }
@@ -84,12 +83,12 @@ public class PayCommand {
         Wallet wallet = Kromer.database.getWallet(thisPlayer.getUuid());
         Wallet otherWallet = Kromer.database.getWallet(otherProfile.getId());
 
-        if(wallet == null) {
+        if (wallet == null) {
             context.getSource().sendFeedback(() -> Text.literal("You do not have a wallet. This should be impossible. Rejoin/contact a staff member.").formatted(Formatting.RED), false);
             return 0;
         }
 
-        if(otherWallet == null) {
+        if (otherWallet == null) {
             context.getSource().sendFeedback(() -> Text.literal("Other user does not have a wallet. They haven't joined recently.").formatted(Formatting.RED), false);
             return 0;
         }
@@ -113,15 +112,15 @@ public class PayCommand {
         HttpRequest request;
         try {
             request = HttpRequest.newBuilder().uri(
-                new URI(Kromer.config.KromerURL()+"api/krist/transactions")
-            )
-                .headers("Content-Type", "application/json")
-                .POST(HttpRequest.BodyPublishers.ofString(obj.toString()))
-                .build();
+                            new URI(Kromer.config.KromerURL() + "api/krist/transactions")
+                    )
+                    .headers("Content-Type", "application/json")
+                    .POST(HttpRequest.BodyPublishers.ofString(obj.toString()))
+                    .build();
         } catch (URISyntaxException e) {
             throw new RuntimeException(e);
         }
-    
+
         Kromer.httpclient.sendAsync(request, HttpResponse.BodyHandlers.ofString()).whenComplete((response, throwable) -> {
             if (throwable != null) {
                 context.getSource().sendFeedback(() -> Text.literal("Encountered issue while attempting to create transaction: " + throwable).formatted(Formatting.RED), false);
@@ -143,10 +142,10 @@ public class PayCommand {
 
             TransactionCreateResponse transactionResponse = new Gson().fromJson(body, TransactionCreateResponse.class);
             context.getSource().sendFeedback(() ->
-                    Text.literal("Sent ").formatted(Formatting.GREEN)
-                            .append(Text.literal( amount + "KRO ").formatted(Formatting.DARK_GREEN))
-                            .append(Text.literal("to ").formatted(Formatting.GREEN))
-                            .append(Text.literal(otherProfile.getName() + "!").formatted(Formatting.DARK_GREEN))
+                            Text.literal("Sent ").formatted(Formatting.GREEN)
+                                    .append(Text.literal(amount + "KRO ").formatted(Formatting.DARK_GREEN))
+                                    .append(Text.literal("to ").formatted(Formatting.GREEN))
+                                    .append(Text.literal(otherProfile.getName() + "!").formatted(Formatting.DARK_GREEN))
                     , false);
         }).join();
         return 1;

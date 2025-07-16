@@ -16,14 +16,14 @@ public class Database {
 
             Statement statement = connection.createStatement();
             statement.executeUpdate("""
-                CREATE TABLE IF NOT EXISTS wallets (
-                    address TEXT PRIMARY KEY,
-                    uuid TEXT,
-                    password TEXT,
-                    outgoingNotSeen TEXT,
-                    incomingNotSeen TEXT
-                )
-            """);
+                        CREATE TABLE IF NOT EXISTS wallets (
+                            address TEXT PRIMARY KEY,
+                            uuid TEXT,
+                            password TEXT,
+                            outgoingNotSeen TEXT,
+                            incomingNotSeen TEXT
+                        )
+                    """);
             statement.close();
         } catch (SQLException e) {
             e.printStackTrace();
@@ -48,10 +48,10 @@ public class Database {
                 stmt.close();
             } else {
                 PreparedStatement stmt = connection.prepareStatement("""
-                    UPDATE wallets
-                    SET address = ?, password = ?, incomingNotSeen = ?, outgoingNotSeen = ?
-                    WHERE uuid = ?
-                """);
+                            UPDATE wallets
+                            SET address = ?, password = ?, incomingNotSeen = ?, outgoingNotSeen = ?
+                            WHERE uuid = ?
+                        """);
                 stmt.setString(1, wallet.address);
                 stmt.setString(2, wallet.password);
                 stmt.setString(3, new Gson().toJson(wallet.incomingNotSeen, Transaction[].class));
@@ -68,8 +68,8 @@ public class Database {
     public Wallet getWallet(UUID playerUuid) {
         try {
             PreparedStatement stmt = connection.prepareStatement("""
-                SELECT address, password, incomingNotSeen, outgoingNotSeen FROM wallets WHERE uuid = ?
-            """);
+                        SELECT address, password, incomingNotSeen, outgoingNotSeen FROM wallets WHERE uuid = ?
+                    """);
             stmt.setString(1, playerUuid.toString());
             ResultSet rs = stmt.executeQuery();
 
@@ -90,8 +90,8 @@ public class Database {
     public Pair<UUID, Wallet> getWallet(String address) {
         try {
             PreparedStatement stmt = connection.prepareStatement("""
-                SELECT uuid, password, incomingNotSeen, outgoingNotSeen FROM wallets WHERE address = ?
-            """);
+                        SELECT uuid, password, incomingNotSeen, outgoingNotSeen FROM wallets WHERE address = ?
+                    """);
             stmt.setString(1, address);
             ResultSet rs = stmt.executeQuery();
 

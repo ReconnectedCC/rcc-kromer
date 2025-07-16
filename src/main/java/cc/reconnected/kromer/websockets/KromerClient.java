@@ -20,9 +20,7 @@ import java.util.*;
 
 public class KromerClient extends WebSocketClient {
     public MinecraftServer server;
-    private static final int MAX_RECONNECT_ATTEMPTS = 10;
 
-    private int reconnectAttempts = 0;
     public KromerClient(URI serverUri, Draft draft) {
         super(serverUri, draft);
     }
@@ -36,7 +34,6 @@ public class KromerClient extends WebSocketClient {
     @Override
     public void onOpen(ServerHandshake handshakedata) {
         Kromer.LOGGER.debug("[WS] Websocket opened!");
-        reconnectAttempts = 0;
         this.send(new Gson().toJson(new SubscribeEvent("transactions", 0)));
         this.send(new Gson().toJson(new SubscribeEvent("names", 1)));
     }
@@ -46,16 +43,16 @@ public class KromerClient extends WebSocketClient {
     public void onMessage(String message) {
         GenericEvent event = new Gson().fromJson(message, GenericEvent.class);
 
-        if(Objects.equals(event.event, "transaction")) {
+        if (Objects.equals(event.event, "transaction")) {
             TransactionEvent transactionEvent = new Gson().fromJson(message, TransactionEvent.class);
             Pair<UUID, Wallet> toWallet = Kromer.database.getWallet(transactionEvent.transaction.to);
-            if(toWallet == null) return;
+            if (toWallet == null) return;
             Pair<UUID, Wallet> fromWallet = Kromer.database.getWallet(transactionEvent.transaction.from);
-            if(fromWallet == null) return;
+            if (fromWallet == null) return;
             ServerPlayerEntity fromPlayer = server.getPlayerManager().getPlayer(fromWallet.getLeft());
             ServerPlayerEntity toPlayer = server.getPlayerManager().getPlayer(toWallet.getLeft());
 
-            if(fromPlayer == null) {
+            if (fromPlayer == null) {
                 Wallet fromPlayerRealWallet = fromWallet.getRight();
                 List<Transaction> outgoingNotSeen = new ArrayList<>(Arrays.asList(fromPlayerRealWallet.outgoingNotSeen));
                 outgoingNotSeen.add(transactionEvent.transaction);
@@ -68,7 +65,7 @@ public class KromerClient extends WebSocketClient {
             }
 
 
-            if(toPlayer == null) {
+            if (toPlayer == null) {
                 Wallet toPlayerRealWallet = toWallet.getRight();
                 List<Transaction> incomingNotSeen = new ArrayList<>(Arrays.asList(toPlayerRealWallet.incomingNotSeen));
                 incomingNotSeen.add(transactionEvent.transaction);
