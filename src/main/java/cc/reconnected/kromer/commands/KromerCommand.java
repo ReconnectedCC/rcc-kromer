@@ -1,6 +1,6 @@
 package cc.reconnected.kromer.commands;
 
-import cc.reconnected.kromer.Main;
+import cc.reconnected.kromer.Kromer;
 
 import cc.reconnected.kromer.responses.MotdResponse;
 import com.google.gson.Gson;
@@ -15,7 +15,6 @@ import net.minecraft.server.command.ServerCommandSource;
 import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.text.Text;
 import net.minecraft.util.Formatting;
-import org.apache.logging.log4j.core.jmx.Server;
 
 import static net.minecraft.server.command.CommandManager.argument;
 import static net.minecraft.server.command.CommandManager.literal;
@@ -37,11 +36,11 @@ public class KromerCommand {
 
             HttpRequest request;
             try {
-                request = HttpRequest.newBuilder().uri(new URI(Main.config.KromerURL() + "api/krist/motd")).GET().build();
+                request = HttpRequest.newBuilder().uri(new URI(Kromer.config.KromerURL() + "api/krist/motd")).GET().build();
             } catch (URISyntaxException e) {
                 throw new RuntimeException(e);
             }
-            Main.httpclient.sendAsync(request, HttpResponse.BodyHandlers.ofString()).whenComplete((response, throwable) -> {
+            Kromer.httpclient.sendAsync(request, HttpResponse.BodyHandlers.ofString()).whenComplete((response, throwable) -> {
                 MotdResponse motdResponse = new Gson().fromJson(response.body(), MotdResponse.class);
                 
                 var feedback = String.format("Fabric version: %s, server version: %s", modVersion, motdResponse.motdPackage.version);
@@ -61,7 +60,7 @@ public class KromerCommand {
                                 context.getSource().sendFeedback(() -> Text.literal("Player is offline").formatted(Formatting.RED), false);
                                 return 0;
                             }
-                            Main.firstLogin(player.getEntityName(), player.getUuid(), player);
+                            Kromer.firstLogin(player.getEntityName(), player.getUuid(), player);
                             return 1;
                         })
                 );
@@ -75,7 +74,7 @@ public class KromerCommand {
                                 ServerPlayerEntity player = EntityArgumentType.getPlayer(context, "player");
                                 int amount = IntegerArgumentType.getInteger(context, "amount");
 
-                                Main.giveMoney(Main.database.getWallet(player.getUuid()), amount);
+                                Kromer.giveMoney(Kromer.database.getWallet(player.getUuid()), amount);
                                 var feedback = String.format("Added money %d KOR to %s.", amount, player.getEntityName());
                                 context.getSource().sendFeedback(() -> Text.literal(feedback).formatted(Formatting.YELLOW), false);
                                 return 1;
@@ -85,7 +84,7 @@ public class KromerCommand {
         var executeWelfare = literal("welfare")
                                 .requires(source -> source.hasPermissionLevel(4))
                                 .executes(context -> {
-                                    Main.executeWelfare();
+                                    Kromer.executeWelfare();
                                     return 1;
                                 });
         var rootCommand = literal("kromer").then(versionCommand).then(giveWalletCommand).then(setMoneyCommand).then(executeWelfare);

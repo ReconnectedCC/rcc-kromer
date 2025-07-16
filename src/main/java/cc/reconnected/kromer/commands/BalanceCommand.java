@@ -1,6 +1,6 @@
 package cc.reconnected.kromer.commands;
 
-import cc.reconnected.kromer.Main;
+import cc.reconnected.kromer.Kromer;
 import cc.reconnected.kromer.database.Wallet;
 import cc.reconnected.kromer.responses.GetAddressResponse;
 import com.google.gson.Gson;
@@ -17,7 +17,7 @@ import java.net.URISyntaxException;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 
-import static cc.reconnected.kromer.Main.errorHandler;
+import static cc.reconnected.kromer.Kromer.errorHandler;
 import static net.minecraft.server.command.CommandManager.literal;
 
 public class BalanceCommand {
@@ -31,14 +31,14 @@ public class BalanceCommand {
             var player = source.getPlayer();
             assert player != null;
 
-            Wallet wallet = Main.database.getWallet(player.getUuid());
+            Wallet wallet = Kromer.database.getWallet(player.getUuid());
 
             if(wallet == null) {
                 context.getSource().sendFeedback(() -> Text.literal("You do not have a wallet. This should be impossible. Rejoin/contact a staff member.").formatted(Formatting.RED), false);
                 return 0;
             }
 
-            var url = String.format(Main.config.KromerURL() + "api/krist/addresses/%s", wallet.address);
+            var url = String.format(Kromer.config.KromerURL() + "api/krist/addresses/%s", wallet.address);
             HttpRequest request;
             try {
                 request = HttpRequest.newBuilder().uri(new URI(url)).GET().build();
@@ -46,7 +46,7 @@ public class BalanceCommand {
                 throw new RuntimeException(e);
             }
 
-            Main.httpclient.sendAsync(request, HttpResponse.BodyHandlers.ofString()).whenComplete((response, throwable) -> {
+            Kromer.httpclient.sendAsync(request, HttpResponse.BodyHandlers.ofString()).whenComplete((response, throwable) -> {
                 if(errorHandler(response, throwable)) return;
 
                 GetAddressResponse addressResponse = new Gson().fromJson(response.body(), GetAddressResponse.class);

@@ -1,6 +1,6 @@
 package cc.reconnected.kromer.websockets;
 
-import cc.reconnected.kromer.Main;
+import cc.reconnected.kromer.Kromer;
 import cc.reconnected.kromer.database.Wallet;
 import cc.reconnected.kromer.responses.Transaction;
 import cc.reconnected.kromer.websockets.events.GenericEvent;
@@ -35,7 +35,7 @@ public class KromerClient extends WebSocketClient {
 
     @Override
     public void onOpen(ServerHandshake handshakedata) {
-        Main.LOGGER.debug("[WS] Websocket opened!");
+        Kromer.LOGGER.debug("[WS] Websocket opened!");
         reconnectAttempts = 0;
         this.send(new Gson().toJson(new SubscribeEvent("transactions", 0)));
         this.send(new Gson().toJson(new SubscribeEvent("names", 1)));
@@ -48,9 +48,9 @@ public class KromerClient extends WebSocketClient {
 
         if(Objects.equals(event.event, "transaction")) {
             TransactionEvent transactionEvent = new Gson().fromJson(message, TransactionEvent.class);
-            Pair<UUID, Wallet> toWallet = Main.database.getWallet(transactionEvent.transaction.to);
+            Pair<UUID, Wallet> toWallet = Kromer.database.getWallet(transactionEvent.transaction.to);
             if(toWallet == null) return;
-            Pair<UUID, Wallet> fromWallet = Main.database.getWallet(transactionEvent.transaction.from);
+            Pair<UUID, Wallet> fromWallet = Kromer.database.getWallet(transactionEvent.transaction.from);
             if(fromWallet == null) return;
             ServerPlayerEntity fromPlayer = server.getPlayerManager().getPlayer(fromWallet.getLeft());
             ServerPlayerEntity toPlayer = server.getPlayerManager().getPlayer(toWallet.getLeft());
@@ -61,7 +61,7 @@ public class KromerClient extends WebSocketClient {
                 outgoingNotSeen.add(transactionEvent.transaction);
                 fromPlayerRealWallet.outgoingNotSeen = outgoingNotSeen.toArray(new Transaction[0]);
 
-                Main.database.setWallet(fromWallet.getLeft(), fromPlayerRealWallet);
+                Kromer.database.setWallet(fromWallet.getLeft(), fromPlayerRealWallet);
             } else {
                 // TODO: Should I implement notifyTransfer for fromPlayer while it's online? I'm assuming that the player knows
                 //       about this transfer.
@@ -74,22 +74,22 @@ public class KromerClient extends WebSocketClient {
                 incomingNotSeen.add(transactionEvent.transaction);
                 toPlayerRealWallet.incomingNotSeen = incomingNotSeen.toArray(new Transaction[0]);
 
-                Main.database.setWallet(toWallet.getLeft(), toPlayerRealWallet);
+                Kromer.database.setWallet(toWallet.getLeft(), toPlayerRealWallet);
             } else {
-                Main.notifyTransfer(toPlayer, transactionEvent.transaction);
+                Kromer.notifyTransfer(toPlayer, transactionEvent.transaction);
             }
         }
     }
 
     @Override
     public void onClose(int code, String reason, boolean remote) {
-        Main.LOGGER.warn("[WS] WebSocket closed: " + reason + " (code=" + code + ")");
+        Kromer.LOGGER.warn("[WS] WebSocket closed: " + reason + " (code=" + code + ")");
         tryReconnect();
     }
 
     @Override
     public void onError(Exception ex) {
-        Main.LOGGER.error("[WS] WebSocket error: ", ex);
+        Kromer.LOGGER.error("[WS] WebSocket error: ", ex);
         if (!isOpen()) {
             tryReconnect();
         }
@@ -97,7 +97,7 @@ public class KromerClient extends WebSocketClient {
 
     private void tryReconnect() {
         try {
-            Main.connectWebsoket(server); // connectWebsocket has it's own reconnection handling information
+            Kromer.connectWebsoket(server); // connectWebsocket has it's own reconnection handling information
         } catch (URISyntaxException e) {
             throw new RuntimeException(e);
         }

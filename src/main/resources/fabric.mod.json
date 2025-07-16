@@ -14,7 +14,7 @@
       "cc.reconnected.kromer.client.mainClient"
     ],
     "server": [
-      "cc.reconnected.kromer.Main"
+      "cc.reconnected.kromer.Kromer"
     ]
   },
   "mixins": [

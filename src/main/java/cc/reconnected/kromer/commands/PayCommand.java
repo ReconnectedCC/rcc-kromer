@@ -1,5 +1,6 @@
 package cc.reconnected.kromer.commands;
 
+import cc.reconnected.kromer.Kromer;
 import cc.reconnected.kromer.database.Wallet;
 import cc.reconnected.kromer.responses.TransactionCreateResponse;
 import cc.reconnected.kromer.responses.errors.GenericError;
@@ -11,10 +12,8 @@ import com.mojang.brigadier.arguments.FloatArgumentType;
 import com.mojang.brigadier.arguments.StringArgumentType;
 import com.mojang.brigadier.context.CommandContext;
 
-import cc.reconnected.kromer.Main;
 import com.mojang.brigadier.exceptions.CommandSyntaxException;
 import net.minecraft.command.CommandRegistryAccess;
-import net.minecraft.command.argument.EntityArgumentType;
 import net.minecraft.command.argument.GameProfileArgumentType;
 import net.minecraft.server.command.CommandManager;
 import net.minecraft.server.command.ServerCommandSource;
@@ -82,8 +81,8 @@ public class PayCommand {
 
         ServerPlayerEntity thisPlayer = context.getSource().getPlayer();
 
-        Wallet wallet = Main.database.getWallet(thisPlayer.getUuid());
-        Wallet otherWallet = Main.database.getWallet(otherProfile.getId());
+        Wallet wallet = Kromer.database.getWallet(thisPlayer.getUuid());
+        Wallet otherWallet = Kromer.database.getWallet(otherProfile.getId());
 
         if(wallet == null) {
             context.getSource().sendFeedback(() -> Text.literal("You do not have a wallet. This should be impossible. Rejoin/contact a staff member.").formatted(Formatting.RED), false);
@@ -114,7 +113,7 @@ public class PayCommand {
         HttpRequest request;
         try {
             request = HttpRequest.newBuilder().uri(
-                new URI(Main.config.KromerURL()+"api/krist/transactions")
+                new URI(Kromer.config.KromerURL()+"api/krist/transactions")
             )
                 .headers("Content-Type", "application/json")
                 .POST(HttpRequest.BodyPublishers.ofString(obj.toString()))
@@ -123,7 +122,7 @@ public class PayCommand {
             throw new RuntimeException(e);
         }
     
-        Main.httpclient.sendAsync(request, HttpResponse.BodyHandlers.ofString()).whenComplete((response, throwable) -> {
+        Kromer.httpclient.sendAsync(request, HttpResponse.BodyHandlers.ofString()).whenComplete((response, throwable) -> {
             if (throwable != null) {
                 context.getSource().sendFeedback(() -> Text.literal("Encountered issue while attempting to create transaction: " + throwable).formatted(Formatting.RED), false);
                 return;

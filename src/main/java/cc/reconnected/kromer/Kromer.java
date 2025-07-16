@@ -8,37 +8,30 @@ import cc.reconnected.kromer.commands.PayCommand;
 import cc.reconnected.kromer.database.Database;
 import cc.reconnected.kromer.database.Wallet;
 import cc.reconnected.kromer.responses.Transaction;
-import cc.reconnected.kromer.responses.TransactionCreateResponse;
 import cc.reconnected.kromer.responses.WalletCreateResponse;
 import cc.reconnected.kromer.responses.WebsocketStartResponse;
-import cc.reconnected.kromer.responses.errors.GenericError;
 import cc.reconnected.kromer.websockets.KromerClient;
 import com.google.gson.Gson;
 import com.google.gson.JsonObject;
 
-import com.google.gson.reflect.TypeToken;
 import com.mojang.authlib.GameProfile;
 import me.alexdevs.solstice.Solstice;
-import me.alexdevs.solstice.data.PlayerData;
 import me.alexdevs.solstice.modules.afk.AfkModule;
-import me.alexdevs.solstice.modules.afk.commands.ActiveTimeCommand;
 import me.alexdevs.solstice.modules.afk.data.AfkPlayerData;
 import me.lucko.fabric.api.permissions.v0.Permissions;
 import net.fabricmc.api.DedicatedServerModInitializer;
 import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents;
-import cc.reconnected.kromer.RccKromerConfig;
+import net.kyori.adventure.text.minimessage.MiniMessage;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.text.Text;
 import net.minecraft.util.Formatting;
 import net.minecraft.util.Pair;
-import org.java_websocket.client.WebSocketClient;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.lang.reflect.Type;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.http.HttpClient;
@@ -51,24 +44,25 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
-public class Main implements DedicatedServerModInitializer {
+public class Kromer implements DedicatedServerModInitializer {
     public static Logger LOGGER = LoggerFactory.getLogger("rcc-kromer");
     public static Database database = new Database();
 
     public static RccKromerConfig config;
     public static HttpClient httpclient = HttpClient.newHttpClient();
     private static KromerClient client;
+    public static MiniMessage mm = MiniMessage.miniMessage();
 
     public static void connectWebsoket(MinecraftServer server) throws URISyntaxException {
         LOGGER.debug("Connecting to Websocket..");
 
         HttpRequest request = HttpRequest.newBuilder().uri(
-                        new URI(Main.config.KromerURL()+"api/krist/ws/start"))
+                        new URI(Kromer.config.KromerURL()+"api/krist/ws/start"))
                 .headers("Content-Type", "application/json")
                 .POST(HttpRequest.BodyPublishers.ofString((new JsonObject()).toString()))
                 .build();
 
-        Main.httpclient.sendAsync(request, HttpResponse.BodyHandlers.ofString()).whenComplete((response, throwable) -> {
+        Kromer.httpclient.sendAsync(request, HttpResponse.BodyHandlers.ofString()).whenComplete((response, throwable) -> {
             if(errorHandler(response, throwable)) {
                     LOGGER.debug("Websocket URL was not found. Retrying in 1 second.");
 
@@ -129,7 +123,7 @@ public class Main implements DedicatedServerModInitializer {
 
         scheduler.scheduleAtFixedRate(new Runnable() {
             public void run() {
-                Main.executeWelfare();
+                Kromer.executeWelfare();
             }
         }, initialDelay, oneHour, TimeUnit.SECONDS);
     }
@@ -152,9 +146,9 @@ public class Main implements DedicatedServerModInitializer {
         float finalWelfare = welfare;
 
         client.server.getPlayerManager().getPlayerList().forEach(p -> {
-            Wallet wallet = Main.database.getWallet(p.getUuid());
+            Wallet wallet = Kromer.database.getWallet(p.getUuid());
             if(wallet == null) return;
-            Main.giveMoney(wallet, finalWelfare);
+            Kromer.giveMoney(wallet, finalWelfare);
 
             p.sendMessage(
                     Text.literal("Thanks for playing! You've been given your welfare of " + finalWelfare + "KRO!").formatted(Formatting.GRAY)
@@ -268,7 +262,7 @@ public class Main implements DedicatedServerModInitializer {
             Wallet wallet = new Wallet(walletResponse.address, walletResponse.password, array, array);
             database.setWallet(uuid, wallet);
             if (kroAmount != 0) {
-                Main.giveMoney(wallet, kroAmount);
+                Kromer.giveMoney(wallet, kroAmount);
             }
         }).join();
     }

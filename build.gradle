@@ -52,6 +52,8 @@ dependencies {
 
     modImplementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_version}"
     modImplementation "io.wispforest:owo-lib:${project.owo_version}"
+    implementation "net.kyori:adventure-api:${project.adventure_version}"
+    modImplementation include("net.kyori:adventure-platform-fabric:${project.adventure_platform_version}")
 
     // SOLSTICE DEPS
     include modImplementation("me.lucko:fabric-permissions-api:${project.permissions_api_version}")
