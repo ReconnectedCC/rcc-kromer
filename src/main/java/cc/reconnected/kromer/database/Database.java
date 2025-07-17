@@ -1,5 +1,6 @@
 package cc.reconnected.kromer.database;
 
+import cc.reconnected.kromer.Kromer;
 import cc.reconnected.kromer.models.domain.Transaction;
 import com.google.gson.Gson;
 import java.sql.*;
@@ -48,14 +49,14 @@ public class Database {
                 stmt.setString(3, wallet.privatekey);
                 stmt.setString(
                     4,
-                    new Gson().toJson(
+                    Kromer.gson.toJson(
                         wallet.incomingNotSeen,
                         Transaction[].class
                     )
                 );
                 stmt.setString(
                     5,
-                    new Gson().toJson(
+                    Kromer.gson.toJson(
                         wallet.outgoingNotSeen,
                         Transaction[].class
                     )
@@ -75,14 +76,14 @@ public class Database {
                 stmt.setString(2, wallet.privatekey);
                 stmt.setString(
                     3,
-                    new Gson().toJson(
+                    Kromer.gson.toJson(
                         wallet.incomingNotSeen,
                         Transaction[].class
                     )
                 );
                 stmt.setString(
                     4,
-                    new Gson().toJson(
+                    Kromer.gson.toJson(
                         wallet.outgoingNotSeen,
                         Transaction[].class
                     )
@@ -110,11 +111,11 @@ public class Database {
                 return new Wallet(
                     rs.getString("address"),
                     rs.getString("privatekey"),
-                    new Gson().fromJson(
+                    Kromer.gson.fromJson(
                         rs.getString("incomingNotSeen"),
                         Transaction[].class
                     ),
-                    new Gson().fromJson(
+                    Kromer.gson.fromJson(
                         rs.getString("outgoingNotSeen"),
                         Transaction[].class
                     )
@@ -141,11 +142,11 @@ public class Database {
                 Wallet wallet = new Wallet(
                     address,
                     rs.getString("privatekey"),
-                    new Gson().fromJson(
+                    Kromer.gson.fromJson(
                         rs.getString("incomingNotSeen"),
                         Transaction[].class
                     ),
-                    new Gson().fromJson(
+                    Kromer.gson.fromJson(
                         rs.getString("outgoingNotSeen"),
                         Transaction[].class
                     )

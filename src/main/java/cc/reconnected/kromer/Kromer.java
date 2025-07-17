@@ -46,6 +46,7 @@ public class Kromer implements DedicatedServerModInitializer {
     public static cc.reconnected.kromer.RccKromerConfig config;
     public static HttpClient httpclient = HttpClient.newHttpClient();
     private static KromerClient client;
+    public static Gson gson = new Gson();
 
     public static Boolean kromerStatus = false;
     public static String currencyName = "KRO";
@@ -79,7 +80,7 @@ public class Kromer implements DedicatedServerModInitializer {
                     return;
                 }
 
-                WebsocketStartResponse resp = new Gson().fromJson(
+                WebsocketStartResponse resp = Kromer.gson.fromJson(
                     response.body(),
                     WebsocketStartResponse.class
                 );

@@ -33,8 +33,8 @@ public class KromerClient extends WebSocketClient {
     @Override
     public void onOpen(ServerHandshake handshakedata) {
         Kromer.LOGGER.debug("[WS] Websocket opened!");
-        this.send(new Gson().toJson(new SubscribeEvent("transactions", 0)));
-        this.send(new Gson().toJson(new SubscribeEvent("names", 1)));
+        this.send(Kromer.gson.toJson(new SubscribeEvent("transactions", 0)));
+        this.send(Kromer.gson.toJson(new SubscribeEvent("names", 1)));
         Kromer.kromerStatus = true;
 
         for (int i = 0; i < Kromer.welfareQueued; i++) {
@@ -45,10 +45,10 @@ public class KromerClient extends WebSocketClient {
 
     @Override
     public void onMessage(String message) {
-        GenericEvent event = new Gson().fromJson(message, GenericEvent.class);
+        GenericEvent event = Kromer.gson.fromJson(message, GenericEvent.class);
 
         if (Objects.equals(event.event, "transaction")) {
-            TransactionEvent transactionEvent = new Gson().fromJson(
+            TransactionEvent transactionEvent = Kromer.gson.fromJson(
                 message,
                 TransactionEvent.class
             );

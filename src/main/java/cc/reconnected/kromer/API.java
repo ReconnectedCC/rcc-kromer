@@ -93,7 +93,7 @@ public class API {
         if (response.statusCode() != 200) {
             GenericError error;
             try {
-                error = new Gson().fromJson(
+                error = Kromer.gson.fromJson(
                     response.body(),
                     GenericError.class
                 );
@@ -157,7 +157,7 @@ public class API {
                     // TODO: implement ts one day
                 }
 
-                GetAddressResponse addressResponse = new Gson().fromJson(
+                GetAddressResponse addressResponse = Kromer.gson.fromJson(
                     response.body(),
                     GetAddressResponse.class
                 );
@@ -199,7 +199,7 @@ public class API {
             .sendAsync(request, HttpResponse.BodyHandlers.ofString())
             .whenComplete((response, throwable) -> {
                 if (errorHandler(response, throwable)) return;
-                WalletCreateResponse walletResponse = new Gson().fromJson(
+                WalletCreateResponse walletResponse = Kromer.gson.fromJson(
                     response.body(),
                     WalletCreateResponse.class
                 );

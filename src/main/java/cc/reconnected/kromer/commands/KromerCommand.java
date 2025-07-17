@@ -63,7 +63,7 @@ public class KromerCommand {
                 Kromer.httpclient
                     .sendAsync(request, HttpResponse.BodyHandlers.ofString())
                     .whenComplete((response, throwable) -> {
-                        MotdResponse motdResponse = new Gson().fromJson(
+                        MotdResponse motdResponse = Kromer.gson.fromJson(
                             response.body(),
                             MotdResponse.class
                         );
