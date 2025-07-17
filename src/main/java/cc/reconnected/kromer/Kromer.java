@@ -5,6 +5,7 @@ package cc.reconnected.kromer;
 import cc.reconnected.kromer.commands.BalanceCommand;
 import cc.reconnected.kromer.commands.KromerCommand;
 import cc.reconnected.kromer.commands.PayCommand;
+import cc.reconnected.kromer.commands.TransactionsCommand;
 import cc.reconnected.kromer.database.Database;
 import cc.reconnected.kromer.database.Wallet;
 import cc.reconnected.kromer.database.WelfareData;
@@ -96,6 +97,18 @@ public class Kromer implements DedicatedServerModInitializer {
     }
 
     public void onInitializeServer() {
+        // Make backup of the database if it exists
+        try {
+            if (new java.io.File("rcc-kromer.sqlite").exists()) {
+                java.nio.file.Files.copy(
+                        java.nio.file.Paths.get("rcc-kromer.sqlite"),
+                        java.nio.file.Paths.get("rcc-kromer.sqlite.bak"),
+                        java.nio.file.StandardCopyOption.REPLACE_EXISTING
+                );
+            }
+        } catch (java.io.IOException e) {
+            e.printStackTrace();
+        }
         Solstice.playerData.registerData("welfare", WelfareData.class, WelfareData::new);
 
         ServerLifecycleEvents.SERVER_STARTED.register((server) -> {
@@ -116,6 +129,7 @@ public class Kromer implements DedicatedServerModInitializer {
         CommandRegistrationCallback.EVENT.register(PayCommand::register);
         CommandRegistrationCallback.EVENT.register(BalanceCommand::register);
         CommandRegistrationCallback.EVENT.register(KromerCommand::register);
+        CommandRegistrationCallback.EVENT.register(TransactionsCommand::register);
 
         config = cc.reconnected.kromer.RccKromerConfig.createAndLoad();
 
