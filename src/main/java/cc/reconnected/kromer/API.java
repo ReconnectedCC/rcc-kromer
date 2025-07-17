@@ -3,10 +3,10 @@ package cc.reconnected.kromer;
 import static cc.reconnected.kromer.Kromer.*;
 
 import cc.reconnected.kromer.database.Wallet;
-import cc.reconnected.kromer.models.GetAddressResponse;
-import cc.reconnected.kromer.models.Transaction;
-import cc.reconnected.kromer.models.WalletCreateResponse;
+import cc.reconnected.kromer.models.domain.Transaction;
 import cc.reconnected.kromer.models.errors.GenericError;
+import cc.reconnected.kromer.models.responses.GetAddressResponse;
+import cc.reconnected.kromer.models.responses.WalletCreateResponse;
 import com.google.gson.Gson;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonSyntaxException;
