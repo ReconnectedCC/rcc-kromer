@@ -1,5 +1,6 @@
 package cc.reconnected.kromer.commands;
 
+import cc.reconnected.kromer.API;
 import cc.reconnected.kromer.Kromer;
 import cc.reconnected.kromer.Locale;
 import cc.reconnected.kromer.database.Wallet;
@@ -43,35 +44,10 @@ public class BalanceCommand {
             return 0;
         }
 
-        var url = String.format(Kromer.config.KromerURL() + "api/krist/addresses/%s", wallet.address);
-        HttpRequest request;
-        try {
-            request = HttpRequest.newBuilder().uri(new URI(url)).GET().build();
-        } catch (URISyntaxException e) {
-            throw new RuntimeException(e);
-        }
-
-        Kromer.httpclient.sendAsync(request, HttpResponse.BodyHandlers.ofString()).whenComplete((response, throwable) -> {
-            if (throwable != null) {
-                context.getSource().sendFeedback(() -> Locale.use(Locale.Messages.ERROR, throwable), false);
-                return;
-            }
-
-            if (response.statusCode() != 200) {
-                GenericError error;
-                try {
-                    error = new Gson().fromJson(response.body(), GenericError.class);
-                } catch (JsonSyntaxException jse) {
-                    context.getSource().sendFeedback(() -> Locale.use(Locale.Messages.ERROR, String.valueOf(response.statusCode())), false);
-                    return;
-                }
-                context.getSource().sendFeedback(() -> Locale.use(Locale.Messages.ERROR, error.error + " (" + error.parameter + ")"), false);
-                return;
-            }
-
-            GetAddressResponse addressResponse = new Gson().fromJson(response.body(), GetAddressResponse.class);
-            context.getSource().sendFeedback(() -> Locale.use(Locale.Messages.BALANCE, addressResponse.address.balance), false);
-        }).join();
+        API.getBalance(wallet.address, context).whenComplete((response, throwable) -> {
+            if(throwable != null) return; // getbalance handles via context
+            context.getSource().sendFeedback(() -> Locale.use(Locale.Messages.BALANCE, response.address.balance), false);
+        });
 
         return 1;
     }

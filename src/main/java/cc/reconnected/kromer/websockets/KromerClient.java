@@ -100,7 +100,7 @@ public class KromerClient extends WebSocketClient {
 
     private void tryReconnect() {
         try {
-            Kromer.connectWebsoket(server); // connectWebsocket has its own reconnection handling information
+            Kromer.connectWebsocket(server); // connectWebsocket has its own reconnection handling information
         } catch (URISyntaxException e) {
             throw new RuntimeException(e);
         }

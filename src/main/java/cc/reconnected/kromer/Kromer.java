@@ -9,12 +9,10 @@ import cc.reconnected.kromer.commands.TransactionsCommand;
 import cc.reconnected.kromer.database.Database;
 import cc.reconnected.kromer.database.Wallet;
 import cc.reconnected.kromer.database.WelfareData;
-import cc.reconnected.kromer.models.domain.Transaction;
-import cc.reconnected.kromer.models.responses.WalletCreateResponse;
-import cc.reconnected.kromer.models.responses.WebsocketStartResponse;
+import cc.reconnected.kromer.models.Transaction;
+import cc.reconnected.kromer.models.WebsocketStartResponse;
 import cc.reconnected.kromer.websockets.KromerClient;
 import com.google.gson.Gson;
-import com.google.gson.JsonObject;
 import com.mojang.authlib.GameProfile;
 import me.alexdevs.solstice.Solstice;
 import me.alexdevs.solstice.modules.afk.AfkModule;
@@ -33,7 +31,6 @@ import org.slf4j.LoggerFactory;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.http.HttpClient;
-import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Duration;
 import java.time.LocalDateTime;
@@ -54,16 +51,10 @@ public class Kromer implements DedicatedServerModInitializer {
     public static String currencyName = "KRO";
     public static int welfareQueued = 0;
 
-    public static void connectWebsoket(MinecraftServer server) throws URISyntaxException {
+    public static void connectWebsocket(MinecraftServer server) throws URISyntaxException {
         LOGGER.debug("Connecting to Websocket..");
 
-        HttpRequest request = HttpRequest.newBuilder().uri(
-                        new URI(Kromer.config.KromerURL() + "api/krist/ws/start"))
-                .headers("Content-Type", "application/json")
-                .POST(HttpRequest.BodyPublishers.ofString((new JsonObject()).toString()))
-                .build();
-
-        Kromer.httpclient.sendAsync(request, HttpResponse.BodyHandlers.ofString()).whenComplete((response, throwable) -> {
+        API.startWs().whenComplete((response, throwable) -> {
             if (errorHandler(response, throwable)) {
                 LOGGER.debug("Websocket URL was not found. Retrying in 1 second.");
 
@@ -71,7 +62,7 @@ public class Kromer implements DedicatedServerModInitializer {
                     @Override
                     public void run() {
                         try {
-                            connectWebsoket(server);
+                            connectWebsocket(server);
                         } catch (URISyntaxException ex) {
                             throw new RuntimeException(ex);
                         }
@@ -113,7 +104,7 @@ public class Kromer implements DedicatedServerModInitializer {
 
         ServerLifecycleEvents.SERVER_STARTED.register((server) -> {
             try {
-                connectWebsoket(server);
+                connectWebsocket(server);
             } catch (java.net.URISyntaxException u) {
                 u.printStackTrace();
             }
@@ -121,7 +112,7 @@ public class Kromer implements DedicatedServerModInitializer {
 
         ServerPlayConnectionEvents.JOIN.register(
                 (a, b, c) -> {
-                    firstLogin(a.player.getEntityName(), a.player.getUuid(), a.player);
+                    grantWallet(a.player.getEntityName(), a.player.getUuid(), a.player);
                     checkTransfers(a.player);
                 }
         );
@@ -168,13 +159,12 @@ public class Kromer implements DedicatedServerModInitializer {
             if (wallet == null) return;
 
             if(Solstice.modules.getModule(AfkModule.class).isPlayerAfk(p)) return;
-            Kromer.giveMoney(wallet, finalWelfare);
+            API.giveMoney(wallet, finalWelfare);
             if(!Solstice.playerData.get(p.getUuid()).getData(WelfareData.class).welfareMuted) {
                 p.sendMessage(Locale.use(Locale.Messages.WELFARE_GIVEN, finalWelfare));
             }
         });
     }
-
     public static String getNameFromWallet(String address) {
         String userName = address; // if from is
         Pair<UUID, Wallet> fromWallet = database.getWallet(userName);
@@ -207,17 +197,16 @@ public class Kromer implements DedicatedServerModInitializer {
                 Transaction transaction = wallet.outgoingNotSeen[i];
 
                 player.sendMessage(
-                        Locale.use(Locale.Messages.OUTGOING_NOT_SEEN, transaction.value, transaction.to, transaction.time.toString())
+                        Locale.use(Locale.Messages.OUTGOING_NOT_SEEN, transaction.value, getNameFromWallet(transaction.to), transaction.time.toString())
                 );
             }
-
         }
 
         if (wallet.incomingNotSeen.length != 0) {
             for (int i = 0; i < wallet.incomingNotSeen.length; i++) {
                 Transaction transaction = wallet.incomingNotSeen[i];
                 player.sendMessage(
-                        Locale.use(Locale.Messages.INCOMING_NOT_SEEN, transaction.from, transaction.value, transaction.time.toString())
+                        Locale.use(Locale.Messages.INCOMING_NOT_SEEN, getNameFromWallet(transaction.from), transaction.value, transaction.time.toString())
                 );
             }
         }
@@ -234,7 +223,7 @@ public class Kromer implements DedicatedServerModInitializer {
         return duration.getSeconds();
     }
 
-    public static void firstLogin(String name, UUID uuid, ServerPlayerEntity player) {
+    public static void grantWallet(String name, UUID uuid, ServerPlayerEntity player) {
         if (database.getWallet(uuid) != null) {
             return;
         }
@@ -250,43 +239,13 @@ public class Kromer implements DedicatedServerModInitializer {
             );
         }
 
-        JsonObject playerObject = new JsonObject();
-        playerObject.addProperty("name", name);
-        playerObject.addProperty("uuid", uuid.toString());
-        HttpRequest request;
-        try {
-            request = HttpRequest.newBuilder().uri(new URI(config.KromerURL() + "api/_internal/wallet/create")).headers("Kromer-Key", config.KromerKey(), "Content-Type", "application/json").POST(HttpRequest.BodyPublishers.ofString(playerObject.toString())).build();
-        } catch (URISyntaxException e) {
-            throw new RuntimeException(e);
-        }
-
-        httpclient.sendAsync(request, HttpResponse.BodyHandlers.ofString()).whenComplete((response, throwable) -> {
-            if (errorHandler(response, throwable)) return;
-            WalletCreateResponse walletResponse = new Gson().fromJson(response.body(), WalletCreateResponse.class);
-            Transaction[] array = {};
-            Wallet wallet = new Wallet(walletResponse.address, walletResponse.privatekey, array, array);
-            database.setWallet(uuid, wallet);
+        API.createWallet(name, uuid).whenComplete((wallet, throwable) -> {
             if (kroAmount != 0) {
-                Kromer.giveMoney(wallet, kroAmount);
+                API.giveMoney(wallet, kroAmount);
             }
         }).join();
     }
 
-    public static void giveMoney(Wallet wallet, float amount) {
-        JsonObject giveMoneyObject = new JsonObject();
-        giveMoneyObject.addProperty("address", wallet.address);
-        giveMoneyObject.addProperty("amount", amount);
-        HttpRequest request;
-        try {
-            request = HttpRequest.newBuilder().uri(new URI(config.KromerURL() + "api/_internal/wallet/give-money")).headers("Kromer-Key", config.KromerKey(), "Content-Type", "application/json").POST(HttpRequest.BodyPublishers.ofString(giveMoneyObject.toString())).build();
-        } catch (URISyntaxException e) {
-            throw new RuntimeException(e);
-        }
-
-        httpclient.sendAsync(request, HttpResponse.BodyHandlers.ofString()).whenComplete((response, throwable) -> {
-            if (errorHandler(response, throwable)) return;
-        }).join();
-    }
 
     public static Boolean errorHandler(HttpResponse<String> response, Throwable throwable) {
         if (throwable != null) {

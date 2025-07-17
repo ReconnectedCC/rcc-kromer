@@ -1,5 +1,6 @@
 package cc.reconnected.kromer.commands;
 
+import cc.reconnected.kromer.API;
 import cc.reconnected.kromer.Kromer;
 import cc.reconnected.kromer.Locale;
 import cc.reconnected.kromer.database.Wallet;
@@ -74,7 +75,7 @@ public class KromerCommand {
                         .executes(context -> {
                             ServerPlayerEntity player = EntityArgumentType.getPlayer(context, "player");
 
-                            Kromer.firstLogin(player.getEntityName(), player.getUuid(), player);
+                            Kromer.grantWallet(player.getEntityName(), player.getUuid(), player);
                             return Command.SINGLE_SUCCESS;
                         })
                 );
@@ -88,7 +89,7 @@ public class KromerCommand {
                                     ServerPlayerEntity player = EntityArgumentType.getPlayer(context, "player");
                                     int amount = IntegerArgumentType.getInteger(context, "amount");
 
-                                    Kromer.giveMoney(Kromer.database.getWallet(player.getUuid()), amount);
+                                    API.giveMoney(Kromer.database.getWallet(player.getUuid()), amount);
                                     context.getSource().sendFeedback(() -> Locale.use(Locale.Messages.ADDED_KRO, amount, player.getEntityName()), false);
                                     return Command.SINGLE_SUCCESS;
                                 })
