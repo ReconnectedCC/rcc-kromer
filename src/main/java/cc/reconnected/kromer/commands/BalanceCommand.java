@@ -3,7 +3,7 @@ package cc.reconnected.kromer.commands;
 import cc.reconnected.kromer.Kromer;
 import cc.reconnected.kromer.Locale;
 import cc.reconnected.kromer.database.Wallet;
-import cc.reconnected.kromer.models.GetAddressResponse;
+import cc.reconnected.kromer.models.responses.GetAddressResponse;
 import cc.reconnected.kromer.models.errors.GenericError;
 import com.google.gson.Gson;
 import com.google.gson.JsonSyntaxException;

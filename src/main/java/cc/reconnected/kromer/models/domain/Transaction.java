@@ -1,4 +1,4 @@
-package cc.reconnected.kromer.models;
+package cc.reconnected.kromer.models.domain;
 
 import java.util.Date;
 

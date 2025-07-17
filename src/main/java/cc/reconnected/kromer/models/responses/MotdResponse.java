@@ -1,9 +1,9 @@
-package cc.reconnected.kromer.models;
+package cc.reconnected.kromer.models.responses;
 
 import com.google.gson.annotations.SerializedName;
 
 
-public class MotdResponse {
+public class MotdResponse extends  GenericResponse {
     public static class Constants {
         public int wallet_version;
         public int nonce_max_size;
@@ -29,7 +29,6 @@ public class MotdResponse {
         public String repository;
     }
 
-    public boolean ok;
     public String server_time;
     public String motd;
     public Object set;

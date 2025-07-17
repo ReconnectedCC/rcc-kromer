@@ -1,7 +1,8 @@
 package cc.reconnected.kromer.models.errors;
 
-public class GenericError {
-    public boolean ok;
+import cc.reconnected.kromer.models.responses.GenericResponse;
+
+public class GenericError extends GenericResponse {
     public String error;
     public String parameter;
 }

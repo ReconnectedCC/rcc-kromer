@@ -2,7 +2,7 @@ package cc.reconnected.kromer.websockets;
 
 import cc.reconnected.kromer.Kromer;
 import cc.reconnected.kromer.database.Wallet;
-import cc.reconnected.kromer.models.Transaction;
+import cc.reconnected.kromer.models.domain.Transaction;
 import cc.reconnected.kromer.websockets.events.GenericEvent;
 import cc.reconnected.kromer.websockets.events.SubscribeEvent;
 import cc.reconnected.kromer.websockets.events.TransactionEvent;

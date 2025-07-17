@@ -1,6 +1,6 @@
 package cc.reconnected.kromer.database;
 
-import cc.reconnected.kromer.models.Transaction;
+import cc.reconnected.kromer.models.domain.Transaction;
 
 import java.util.Arrays;
 
