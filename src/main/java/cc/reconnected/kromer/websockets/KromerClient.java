@@ -6,7 +6,6 @@ import cc.reconnected.kromer.models.domain.Transaction;
 import cc.reconnected.kromer.websockets.events.GenericEvent;
 import cc.reconnected.kromer.websockets.events.SubscribeEvent;
 import cc.reconnected.kromer.websockets.events.TransactionEvent;
-import com.google.gson.Gson;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.*;

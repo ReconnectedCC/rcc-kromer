@@ -2,7 +2,6 @@ package cc.reconnected.kromer.database;
 
 import cc.reconnected.kromer.Kromer;
 import cc.reconnected.kromer.models.domain.Transaction;
-import com.google.gson.Gson;
 import java.sql.*;
 import java.util.UUID;
 import net.minecraft.util.Pair;

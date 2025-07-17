@@ -101,7 +101,7 @@ public class TransactionsCommand {
                 if (response.statusCode() != 200) {
                     GenericError error;
                     try {
-                        error = new Gson().fromJson(
+                        error = Kromer.gson.fromJson(
                             response.body(),
                             GenericError.class
                         );
@@ -131,7 +131,7 @@ public class TransactionsCommand {
                     return;
                 }
                 GetTransactionsFromAddressResponse responseObj =
-                    new Gson().fromJson(
+                    Kromer.gson.fromJson(
                         response.body(),
                         GetTransactionsFromAddressResponse.class
                     );
