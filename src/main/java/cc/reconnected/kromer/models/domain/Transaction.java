@@ -3,6 +3,7 @@ package cc.reconnected.kromer.models.domain;
 import java.util.Date;
 
 public class Transaction {
+
     public int id;
     public String from;
     public String to;
@@ -14,7 +15,18 @@ public class Transaction {
     public String sent_name;
     public String type;
 
-    public Transaction(String sent_metaname, int id, String from, String to, float value, Date time, String name, String metadata, String sent_name, String type) {
+    public Transaction(
+        String sent_metaname,
+        int id,
+        String from,
+        String to,
+        float value,
+        Date time,
+        String name,
+        String metadata,
+        String sent_name,
+        String type
+    ) {
         this.sent_metaname = sent_metaname;
         this.id = id;
         this.from = from;

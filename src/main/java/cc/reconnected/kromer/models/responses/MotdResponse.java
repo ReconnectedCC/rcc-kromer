@@ -2,9 +2,10 @@ package cc.reconnected.kromer.models.responses;
 
 import com.google.gson.annotations.SerializedName;
 
+public class MotdResponse extends GenericResponse {
 
-public class MotdResponse extends  GenericResponse {
     public static class Constants {
+
         public int wallet_version;
         public int nonce_max_size;
         public int name_cost;
@@ -15,6 +16,7 @@ public class MotdResponse extends  GenericResponse {
     }
 
     public static class Currency {
+
         public String address_prefix;
         public String name_suffix;
         public String currency_name;
@@ -22,6 +24,7 @@ public class MotdResponse extends  GenericResponse {
     }
 
     public static class Package {
+
         public String name;
         public String version;
         public String author;
@@ -40,10 +43,11 @@ public class MotdResponse extends  GenericResponse {
     public boolean debug_mode;
     public int work;
     public Object last_block;
+
     @SerializedName("package")
     public Package motdPackage;
+
     public Constants constants;
     public Currency currency;
     public String notice;
 }
-
