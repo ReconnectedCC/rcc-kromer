@@ -1,6 +1,7 @@
 package cc.reconnected.kromer.commands;
 
 import cc.reconnected.kromer.Kromer;
+import cc.reconnected.kromer.Locale;
 import cc.reconnected.kromer.database.Wallet;
 import cc.reconnected.kromer.database.WelfareData;
 import cc.reconnected.kromer.responses.MotdResponse;
@@ -47,8 +48,7 @@ public class KromerCommand {
             Kromer.httpclient.sendAsync(request, HttpResponse.BodyHandlers.ofString()).whenComplete((response, throwable) -> {
                 MotdResponse motdResponse = new Gson().fromJson(response.body(), MotdResponse.class);
 
-                var feedback = String.format("Fabric version: %s, server version: %s", modVersion, motdResponse.motdPackage.version);
-                context.getSource().sendFeedback(() -> Text.literal(feedback).formatted(Formatting.YELLOW), false);
+                context.getSource().sendFeedback(() -> Locale.use(Locale.Messages.VERSION, modVersion, motdResponse.motdPackage.version), false);
             });
             return 1;
         });
@@ -56,19 +56,11 @@ public class KromerCommand {
         var infoCommand = literal("info").executes(context -> {
             Wallet wallet = Kromer.database.getWallet(context.getSource().getPlayer().getUuid());
             if(wallet == null) return 0;
-            context.getSource().sendFeedback(() -> Text.literal("Your kromer information:").formatted(Formatting.GREEN), false);
 
-            context.getSource().sendFeedback(() -> Text.literal("Address: ").formatted(Formatting.YELLOW)
-                    .append(Text.literal(wallet.address).formatted(Formatting.GOLD).styled(f -> f.withClickEvent(new ClickEvent(ClickEvent.Action.COPY_TO_CLIPBOARD, wallet.address))))
-                    .append(Text.literal(" (click to copy!)").formatted(Formatting.GRAY)), false);
-
-            context.getSource().sendFeedback(() -> Text.literal("privatekey: ").formatted(Formatting.YELLOW)
-                    .append(Text.literal(wallet.privatekey).formatted(Formatting.GOLD).styled(f -> f.withClickEvent(new ClickEvent(ClickEvent.Action.COPY_TO_CLIPBOARD, wallet.privatekey))))
-                    .append(Text.literal(" (click to copy!)").formatted(Formatting.GRAY)), false);
-
+            context.getSource().sendFeedback(() -> Locale.use(Locale.Messages.KROMER_INFORMATION, wallet.address, wallet.address, wallet.privatekey, wallet.privatekey), false);
             if(!Kromer.kromerStatus) {
                 context.getSource().sendFeedback(Text::empty, false);
-                context.getSource().sendFeedback(() -> Text.literal("WARNING: Kromer is currently down!").formatted(Formatting.YELLOW), false);
+                context.getSource().sendFeedback(() -> Locale.use(Locale.Messages.KROMER_UNAVAILABLE), false);
                 return 0;
             }
             return Command.SINGLE_SUCCESS;
@@ -77,13 +69,8 @@ public class KromerCommand {
         var giveWalletCommand = literal("givewallet")
                 .then(argument("player", EntityArgumentType.player()).requires(source -> source.hasPermissionLevel(4))
                         .executes(context -> {
-                            //check if word is a player name
                             ServerPlayerEntity player = EntityArgumentType.getPlayer(context, "player");
-                            //Check if player is online
-                            if (player == null || player.getUuid() == null) {
-                                context.getSource().sendFeedback(() -> Text.literal("Player is offline").formatted(Formatting.RED), false);
-                                return 0;
-                            }
+
                             Kromer.firstLogin(player.getEntityName(), player.getUuid(), player);
                             return Command.SINGLE_SUCCESS;
                         })
@@ -99,8 +86,7 @@ public class KromerCommand {
                                     int amount = IntegerArgumentType.getInteger(context, "amount");
 
                                     Kromer.giveMoney(Kromer.database.getWallet(player.getUuid()), amount);
-                                    var feedback = String.format("Added %dKRO to %s.", amount, player.getEntityName());
-                                    context.getSource().sendFeedback(() -> Text.literal(feedback).formatted(Formatting.YELLOW), false);
+                                    context.getSource().sendFeedback(() -> Locale.use(Locale.Messages.ADDED_KRO, amount, player.getEntityName()), false);
                                     return Command.SINGLE_SUCCESS;
                                 })
                         )
@@ -116,9 +102,9 @@ public class KromerCommand {
             WelfareData welfareData = Solstice.playerData.get(Objects.requireNonNull(context.getSource().getPlayer()).getUuid()).getData(WelfareData.class);
 
             if(welfareData.welfareMuted) {
-                context.getSource().sendFeedback(() -> Text.literal("Welfare notifications are no longer muted.").formatted(Formatting.GREEN), false);
+                context.getSource().sendFeedback(() -> Locale.use(Locale.Messages.WELFARE_NOT_MUTED), false);
             } else {
-                context.getSource().sendFeedback(() -> Text.literal("Welfare notifications are now muted.").formatted(Formatting.RED), false);
+                context.getSource().sendFeedback(() -> Locale.use(Locale.Messages.WELFARE_MUTED), false);
             }
 
             welfareData.welfareMuted = !welfareData.welfareMuted;

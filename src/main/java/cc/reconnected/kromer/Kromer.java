@@ -158,9 +158,7 @@ public class Kromer implements DedicatedServerModInitializer {
             if(Solstice.modules.getModule(AfkModule.class).isPlayerAfk(p)) return;
             Kromer.giveMoney(wallet, finalWelfare);
             if(!Solstice.playerData.get(p.getUuid()).getData(WelfareData.class).welfareMuted) {
-                p.sendMessage(
-                        Text.literal("Thanks for playing! You've been given your welfare of " + finalWelfare + "KRO!").formatted(Formatting.GRAY)
-                );
+                p.sendMessage(Locale.use(Locale.Messages.WELFARE_GIVEN, finalWelfare));
             }
         });
     }
@@ -183,10 +181,7 @@ public class Kromer implements DedicatedServerModInitializer {
 
     public static void notifyTransfer(ServerPlayerEntity player, Transaction transaction) {
         player.sendMessage(
-                Text.literal("You have been sent ").formatted(Formatting.GREEN)
-                        .append(Text.literal(String.valueOf(transaction.value)).formatted(Formatting.DARK_GREEN))
-                        .append(Text.literal("KRO, from ").formatted(Formatting.GREEN))
-                        .append(Text.literal((getNameFromWallet(transaction.from)) + "!").formatted(Formatting.DARK_GREEN))
+                Locale.use(Locale.Messages.NOTIFY_TRANSFER, transaction.value, getNameFromWallet(transaction.from))
         );
     }
 
@@ -200,12 +195,7 @@ public class Kromer implements DedicatedServerModInitializer {
                 Transaction transaction = wallet.outgoingNotSeen[i];
 
                 player.sendMessage(
-                        Text.literal("From your account, ").formatted(Formatting.RED)
-                                .append(Text.literal(String.valueOf(transaction.value)).formatted(Formatting.DARK_RED))
-                                .append(Text.literal("KRO, has been sent to").formatted(Formatting.RED))
-                                .append(Text.literal(getNameFromWallet(transaction.to) + ". ").formatted(Formatting.DARK_RED))
-                                .append(Text.literal("Executed at: " + transaction.time.toString()).formatted(Formatting.RED))
-
+                        Locale.use(Locale.Messages.OUTGOING_NOT_SEEN, transaction.value, transaction.to, transaction.time.toString())
                 );
             }
 
@@ -215,11 +205,7 @@ public class Kromer implements DedicatedServerModInitializer {
             for (int i = 0; i < wallet.incomingNotSeen.length; i++) {
                 Transaction transaction = wallet.incomingNotSeen[i];
                 player.sendMessage(
-                        Text.literal(getNameFromWallet(transaction.from)).formatted(Formatting.DARK_GREEN)
-                                .append(Text.literal(" deposited ").formatted(Formatting.GREEN))
-                                .append(Text.literal((transaction.value) + "KRO").formatted(Formatting.DARK_GREEN))
-                                .append(Text.literal(" into your account. ").formatted(Formatting.GREEN))
-                                .append(Text.literal("Executed at: " + transaction.time.toString()).formatted(Formatting.GREEN))
+                        Locale.use(Locale.Messages.INCOMING_NOT_SEEN, transaction.from, transaction.value, transaction.time.toString())
                 );
             }
         }
@@ -248,9 +234,7 @@ public class Kromer implements DedicatedServerModInitializer {
 
         if (kroAmount != 0 && player != null) {
             player.sendMessage(
-                    Text.literal("You have recieved: ").formatted(Formatting.GREEN)
-                            .append(Text.literal((kroAmount) + "KRO").formatted(Formatting.DARK_GREEN))
-                            .append(Text.literal(" for your playtime!").formatted(Formatting.GREEN))
+                    Locale.use(Locale.Messages.RETROACTIVE, kroAmount)
             );
         }
 

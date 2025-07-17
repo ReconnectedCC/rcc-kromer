@@ -1,6 +1,7 @@
 package cc.reconnected.kromer.commands;
 
 import cc.reconnected.kromer.Kromer;
+import cc.reconnected.kromer.Locale;
 import cc.reconnected.kromer.database.Wallet;
 import cc.reconnected.kromer.responses.GetAddressResponse;
 import com.google.gson.Gson;
@@ -34,12 +35,12 @@ public class BalanceCommand {
         Wallet wallet = Kromer.database.getWallet(player.getUuid());
 
         if(!Kromer.kromerStatus) {
-            context.getSource().sendFeedback(() -> Text.literal("Kromer is currently unavailable.").formatted(Formatting.RED), false);
+            context.getSource().sendFeedback(() -> Locale.use(Locale.Messages.KROMER_UNAVAILABLE), false);
             return 0;
         }
 
         if (wallet == null) {
-            context.getSource().sendFeedback(() -> Text.literal("You do not have a wallet. This should be impossible. Rejoin/contact a staff member.").formatted(Formatting.RED), false);
+            context.getSource().sendFeedback(() -> Locale.use(Locale.Messages.NO_WALLET), false);
             return 0;
         }
 
@@ -55,8 +56,7 @@ public class BalanceCommand {
             if (errorHandler(response, throwable)) return;
 
             GetAddressResponse addressResponse = new Gson().fromJson(response.body(), GetAddressResponse.class);
-            var feedback = String.format("Your balance is: %.2fKRO.", addressResponse.address.balance);
-            source.sendFeedback(() -> Text.literal(feedback).formatted(Formatting.GREEN), false);
+            context.getSource().sendFeedback(() -> Locale.use(Locale.Messages.BALANCE, addressResponse.address.balance), false);
         }).join();
 
         return 1;

@@ -1,6 +1,7 @@
 package cc.reconnected.kromer.commands;
 
 import cc.reconnected.kromer.Kromer;
+import cc.reconnected.kromer.Locale;
 import cc.reconnected.kromer.database.Wallet;
 import cc.reconnected.kromer.responses.TransactionCreateResponse;
 import cc.reconnected.kromer.responses.errors.GenericError;
@@ -160,14 +161,14 @@ public class PayCommand {
         PendingPayment payment = pendingPayments.remove(player.getUuid());
 
         if (payment == null) {
-            context.getSource().sendFeedback(() -> Text.literal("No pending payment to confirm.").formatted(Formatting.RED), false);
+            context.getSource().sendFeedback(() -> Locale.use(Locale.Messages.NO_PENDING), false);
             return 0;
         }
 
         Wallet wallet = Kromer.database.getWallet(player.getUuid());
 
         if (wallet == null) {
-            context.getSource().sendFeedback(() -> Text.literal("Wallet not found.").formatted(Formatting.RED), false);
+            context.getSource().sendFeedback(() -> Locale.use(Locale.Messages.NO_WALLET), false);
             return 0;
         }
 
@@ -191,7 +192,7 @@ public class PayCommand {
 
         Kromer.httpclient.sendAsync(request, HttpResponse.BodyHandlers.ofString()).whenComplete((response, throwable) -> {
             if (throwable != null) {
-                context.getSource().sendFeedback(() -> Text.literal("Error while creating transaction: " + throwable).formatted(Formatting.RED), false);
+                context.getSource().sendFeedback(() -> Locale.use(Locale.Messages.ERROR_TRANSACTION, throwable), false);
                 return;
             }
 
@@ -200,19 +201,14 @@ public class PayCommand {
                 try {
                     error = new Gson().fromJson(response.body(), GenericError.class);
                 } catch (JsonSyntaxException jse) {
-                    context.getSource().sendFeedback(() -> Text.literal("Transaction failed, status code: " + response.statusCode()).formatted(Formatting.RED), false);
+                    context.getSource().sendFeedback(() -> Locale.use(Locale.Messages.ERROR_TRANSACTION, String.valueOf(response.statusCode())), false);
                     return;
                 }
-                context.getSource().sendFeedback(() -> Text.literal("Transaction failed: " + error.error + " (" + error.parameter + ")").formatted(Formatting.RED), false);
+                context.getSource().sendFeedback(() -> Locale.use(Locale.Messages.ERROR_TRANSACTION, error.error + " (" + error.parameter + ")"), false);
                 return;
             }
 
-            context.getSource().sendFeedback(() ->
-                    Text.literal("Payment of ").formatted(Formatting.GREEN)
-                            .append(Text.literal(payment.amount + "KRO ").formatted(Formatting.DARK_GREEN))
-                            .append(Text.literal("to ").formatted(Formatting.GREEN))
-                            .append(Text.literal(payment.to).formatted(Formatting.DARK_GREEN))
-                            .append(Text.literal(" confirmed.").formatted(Formatting.GREEN)), false);
+            context.getSource().sendFeedback(() -> Locale.use(Locale.Messages.PAYMENT_CONFIRMED, payment.amount, payment.to), false);
         }).join();
 
         return 1;
