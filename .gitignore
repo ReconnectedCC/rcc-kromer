@@ -3,3 +3,7 @@
 /.gradle/
 /run/
 /bin/
+
+.project
+.settings
+.factorypath
