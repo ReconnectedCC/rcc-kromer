@@ -278,15 +278,15 @@ public class Kromer implements DedicatedServerModInitializer {
 
     public static Boolean errorHandler(HttpResponse<String> response, Throwable throwable) {
         if (throwable != null) {
-            LOGGER.error("Failed to send player data to Kromer, C: {}, M: {}", throwable.getCause(), throwable.getMessage());
+            LOGGER.error("Failed to send request to Kromer, C: {}, M: {}", throwable.getCause(), throwable.getMessage());
             return true;
         }
         if (response.statusCode() != 200) {
-            LOGGER.error("Failed to send player data to Kromer, S: {}, B: {}", response.statusCode(), response.body());
+            LOGGER.error("Failed to send request to Kromer, S: {}, B: {}", response.statusCode(), response.body());
             return true;
         }
         if (response.body() == null) {
-            LOGGER.error("Failed to send player data to Kromer: No response body");
+            LOGGER.error("Failed to send request to  Kromer: No response body");
             return true;
 
         }

@@ -192,7 +192,7 @@ public class PayCommand {
 
         Kromer.httpclient.sendAsync(request, HttpResponse.BodyHandlers.ofString()).whenComplete((response, throwable) -> {
             if (throwable != null) {
-                context.getSource().sendFeedback(() -> Locale.use(Locale.Messages.ERROR_TRANSACTION, throwable), false);
+                context.getSource().sendFeedback(() -> Locale.use(Locale.Messages.ERROR, throwable), false);
                 return;
             }
 
@@ -201,10 +201,10 @@ public class PayCommand {
                 try {
                     error = new Gson().fromJson(response.body(), GenericError.class);
                 } catch (JsonSyntaxException jse) {
-                    context.getSource().sendFeedback(() -> Locale.use(Locale.Messages.ERROR_TRANSACTION, String.valueOf(response.statusCode())), false);
+                    context.getSource().sendFeedback(() -> Locale.use(Locale.Messages.ERROR, String.valueOf(response.statusCode())), false);
                     return;
                 }
-                context.getSource().sendFeedback(() -> Locale.use(Locale.Messages.ERROR_TRANSACTION, error.error + " (" + error.parameter + ")"), false);
+                context.getSource().sendFeedback(() -> Locale.use(Locale.Messages.ERROR, error.error + " (" + error.parameter + ")"), false);
                 return;
             }
 

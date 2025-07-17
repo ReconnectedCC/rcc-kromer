@@ -18,7 +18,7 @@ public class Locale {
         WELFARE_NOT_MUTED("<green>Welfare notifications are no longer muted."),
         WELFARE_MUTED("<red>Welfare notifications are now muted."),
         NO_PENDING("<red>No pending payment to confirm."),
-        ERROR_TRANSACTION("<red>Error while creating transaction: %s"),
+        ERROR("<red>Error while contacting kromer: %s"),
         PAYMENT_CONFIRMED("<green>Payment of <dark_green>%.2fKRO</dark_green> to <dark_green>%s</dark_green> confirmed.</green>"),
         RETROACTIVE("<green>You have received: <dark_green>%.2fKRO</dark_green> for your playtime!</green>"),
         WELFARE_GIVEN("<gray>Thanks for playing! You've been given your welfare of %.2fKRO!"),

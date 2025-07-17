@@ -65,11 +65,7 @@ public class KromerClient extends WebSocketClient {
                 fromPlayerRealWallet.outgoingNotSeen = outgoingNotSeen.toArray(new Transaction[0]);
 
                 Kromer.database.setWallet(fromWallet.getLeft(), fromPlayerRealWallet);
-            } else {
-                // TODO: Should I implement notifyTransfer for fromPlayer while it's online? I'm assuming that the player knows
-                //       about this transfer.
             }
-
 
             if (toPlayer == null) {
                 Wallet toPlayerRealWallet = toWallet.getRight();
@@ -104,7 +100,7 @@ public class KromerClient extends WebSocketClient {
 
     private void tryReconnect() {
         try {
-            Kromer.connectWebsoket(server); // connectWebsocket has it's own reconnection handling information
+            Kromer.connectWebsoket(server); // connectWebsocket has its own reconnection handling information
         } catch (URISyntaxException e) {
             throw new RuntimeException(e);
         }

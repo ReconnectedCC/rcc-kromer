@@ -4,7 +4,9 @@ import cc.reconnected.kromer.Kromer;
 import cc.reconnected.kromer.Locale;
 import cc.reconnected.kromer.database.Wallet;
 import cc.reconnected.kromer.responses.GetAddressResponse;
+import cc.reconnected.kromer.responses.errors.GenericError;
 import com.google.gson.Gson;
+import com.google.gson.JsonSyntaxException;
 import com.mojang.brigadier.CommandDispatcher;
 import com.mojang.brigadier.context.CommandContext;
 import net.minecraft.command.CommandRegistryAccess;
@@ -53,7 +55,22 @@ public class BalanceCommand {
         }
 
         Kromer.httpclient.sendAsync(request, HttpResponse.BodyHandlers.ofString()).whenComplete((response, throwable) -> {
-            if (errorHandler(response, throwable)) return;
+            if (throwable != null) {
+                context.getSource().sendFeedback(() -> Locale.use(Locale.Messages.ERROR, throwable), false);
+                return;
+            }
+
+            if (response.statusCode() != 200) {
+                GenericError error;
+                try {
+                    error = new Gson().fromJson(response.body(), GenericError.class);
+                } catch (JsonSyntaxException jse) {
+                    context.getSource().sendFeedback(() -> Locale.use(Locale.Messages.ERROR, String.valueOf(response.statusCode())), false);
+                    return;
+                }
+                context.getSource().sendFeedback(() -> Locale.use(Locale.Messages.ERROR, error.error + " (" + error.parameter + ")"), false);
+                return;
+            }
 
             GetAddressResponse addressResponse = new Gson().fromJson(response.body(), GetAddressResponse.class);
             context.getSource().sendFeedback(() -> Locale.use(Locale.Messages.BALANCE, addressResponse.address.balance), false);
