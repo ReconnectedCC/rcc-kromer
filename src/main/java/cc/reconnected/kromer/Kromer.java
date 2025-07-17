@@ -154,6 +154,8 @@ public class Kromer implements DedicatedServerModInitializer {
         client.server.getPlayerManager().getPlayerList().forEach(p -> {
             Wallet wallet = Kromer.database.getWallet(p.getUuid());
             if (wallet == null) return;
+
+            if(Solstice.modules.getModule(AfkModule.class).isPlayerAfk(p)) return;
             Kromer.giveMoney(wallet, finalWelfare);
             if(!Solstice.playerData.get(p.getUuid()).getData(WelfareData.class).welfareMuted) {
                 p.sendMessage(
