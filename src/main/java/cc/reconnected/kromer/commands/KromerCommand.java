@@ -4,8 +4,11 @@ import cc.reconnected.kromer.Kromer;
 import cc.reconnected.kromer.Locale;
 import cc.reconnected.kromer.database.Wallet;
 import cc.reconnected.kromer.database.WelfareData;
+import cc.reconnected.kromer.models.GetAddressResponse;
 import cc.reconnected.kromer.models.MotdResponse;
+import cc.reconnected.kromer.models.errors.GenericError;
 import com.google.gson.Gson;
+import com.google.gson.JsonSyntaxException;
 import com.mojang.brigadier.Command;
 import com.mojang.brigadier.CommandDispatcher;
 import com.mojang.brigadier.arguments.IntegerArgumentType;
@@ -138,10 +141,37 @@ public class KromerCommand {
                             Wallet wallet = Kromer.database.getWallet(context.getSource().getPlayer().getUuid());
                             if(wallet == null) return 0;
 
+                            var url = String.format(Kromer.config.KromerURL() + "api/krist/addresses/%s", wallet.address);
+                            HttpRequest request;
+                            try {
+                                request = HttpRequest.newBuilder().uri(new URI(url)).GET().build();
+                            } catch (URISyntaxException e) {
+                                throw new RuntimeException(e);
+                            }
 
-                            //  todo get balance
-                        // remove that amount from balance via kromer.givemoney(-balance) ok
+                            Kromer.httpclient.sendAsync(request, HttpResponse.BodyHandlers.ofString()).whenComplete((response, throwable) -> {
+                                if (throwable != null) {
+                                    context.getSource().sendFeedback(() -> Locale.use(Locale.Messages.ERROR, throwable), false);
+                                    return;
+                                }
 
+                                if (response.statusCode() != 200) {
+                                    GenericError error;
+                                    try {
+                                        error = new Gson().fromJson(response.body(), GenericError.class);
+                                    } catch (JsonSyntaxException jse) {
+                                        context.getSource().sendFeedback(() -> Locale.use(Locale.Messages.ERROR, String.valueOf(response.statusCode())), false);
+                                        return;
+                                    }
+                                    context.getSource().sendFeedback(() -> Locale.use(Locale.Messages.ERROR, error.error + " (" + error.parameter + ")"), false);
+                                    return;
+                                }
+
+                                GetAddressResponse addressResponse = new Gson().fromJson(response.body(), GetAddressResponse.class);
+
+                                // balance is in addressResponse.address.balance
+                                // wait for sov
+                            }).join();
                             return 1;
                         }));
 
