@@ -1,6 +1,6 @@
 package cc.reconnected.kromer.websockets.events;
 
-import cc.reconnected.kromer.responses.Transaction;
+import cc.reconnected.kromer.models.Transaction;
 
 public class TransactionEvent extends GenericEvent {
     public Transaction transaction;

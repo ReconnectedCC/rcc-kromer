@@ -1,4 +1,4 @@
-package cc.reconnected.kromer.responses.errors;
+package cc.reconnected.kromer.models.errors;
 
 public class GenericError {
     public boolean ok;

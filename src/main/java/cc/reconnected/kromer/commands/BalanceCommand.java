@@ -3,8 +3,8 @@ package cc.reconnected.kromer.commands;
 import cc.reconnected.kromer.Kromer;
 import cc.reconnected.kromer.Locale;
 import cc.reconnected.kromer.database.Wallet;
-import cc.reconnected.kromer.responses.GetAddressResponse;
-import cc.reconnected.kromer.responses.errors.GenericError;
+import cc.reconnected.kromer.models.GetAddressResponse;
+import cc.reconnected.kromer.models.errors.GenericError;
 import com.google.gson.Gson;
 import com.google.gson.JsonSyntaxException;
 import com.mojang.brigadier.CommandDispatcher;
@@ -12,15 +12,12 @@ import com.mojang.brigadier.context.CommandContext;
 import net.minecraft.command.CommandRegistryAccess;
 import net.minecraft.server.command.CommandManager;
 import net.minecraft.server.command.ServerCommandSource;
-import net.minecraft.text.Text;
-import net.minecraft.util.Formatting;
 
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 
-import static cc.reconnected.kromer.Kromer.errorHandler;
 import static net.minecraft.server.command.CommandManager.literal;
 
 public class BalanceCommand {

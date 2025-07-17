@@ -1,4 +1,4 @@
-package cc.reconnected.kromer.responses;
+package cc.reconnected.kromer.models;
 
 import com.google.gson.annotations.SerializedName;
 

@@ -1,4 +1,4 @@
-package cc.reconnected.kromer.responses;
+package cc.reconnected.kromer.models;
 
 public class TransactionCreateResponse {
     public Boolean ok;

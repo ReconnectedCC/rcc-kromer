@@ -4,7 +4,7 @@ import cc.reconnected.kromer.Kromer;
 import cc.reconnected.kromer.Locale;
 import cc.reconnected.kromer.database.Wallet;
 import cc.reconnected.kromer.database.WelfareData;
-import cc.reconnected.kromer.responses.MotdResponse;
+import cc.reconnected.kromer.models.MotdResponse;
 import com.google.gson.Gson;
 import com.mojang.brigadier.Command;
 import com.mojang.brigadier.CommandDispatcher;
@@ -112,24 +112,23 @@ public class KromerCommand {
         });
 
         var optOutOfWelfare = literal("optOut")
-
                 .executes(context -> {
-            WelfareData welfareData = Solstice.playerData.get(context.getSource().getPlayer().getUuid()).getData(WelfareData.class);
+                    WelfareData welfareData = Solstice.playerData.get(context.getSource().getPlayer().getUuid()).getData(WelfareData.class);
 
-            if(welfareData.optedOut) {
-                context.getSource().sendFeedback(() -> Text.literal("You have already opted out of welfare.").formatted(Formatting.RED), false);
-                return 0;
-            }
+                    if(welfareData.optedOut) {
+                        context.getSource().sendFeedback(() -> Text.literal("You have already opted out of welfare.").formatted(Formatting.RED), false);
+                        return 0;
+                    }
 
-            context.getSource().sendFeedback(() -> Text.literal("Opting out of welfare means your starting kromer will be removed, including all").formatted(Formatting.RED), false);
-            context.getSource().sendFeedback(() -> Text.literal("starting kromer, and future welfare payments. Are you sure you want to opt out of welfare?").formatted(Formatting.RED), false);
-            context.getSource().sendFeedback(Text::empty, false);
-            context.getSource().sendFeedback(() -> Text.literal("INFO: You are able to opt in back to welfare, but you will not regain your starting kromer.").formatted(Formatting.YELLOW), false);
-            context.getSource().sendFeedback(Text::empty, false);
-            context.getSource().sendFeedback(() -> Text.literal("[CONFIRM]").styled(s -> s.withClickEvent(new ClickEvent(ClickEvent.Action.RUN_COMMAND, "/kromer optOut confirm"))).formatted(Formatting.RED).formatted(Formatting.BOLD), false);
+                    context.getSource().sendFeedback(() -> Text.literal("Opting out of welfare means your starting kromer will be removed, including all").formatted(Formatting.RED), false);
+                    context.getSource().sendFeedback(() -> Text.literal("starting kromer, and future welfare payments. Are you sure you want to opt out of welfare?").formatted(Formatting.RED), false);
+                    context.getSource().sendFeedback(Text::empty, false);
+                    context.getSource().sendFeedback(() -> Text.literal("INFO: You are able to opt in back to welfare, but you will not regain your starting kromer.").formatted(Formatting.YELLOW), false);
+                    context.getSource().sendFeedback(Text::empty, false);
+                    context.getSource().sendFeedback(() -> Text.literal("[CONFIRM]").styled(s -> s.withClickEvent(new ClickEvent(ClickEvent.Action.RUN_COMMAND, "/kromer optOut confirm"))).formatted(Formatting.RED).formatted(Formatting.BOLD), false);
 
-            return 1;
-        })
+                    return 1;
+                })
                 .then(literal("confirm")
                         .executes(context -> {
                             WelfareData welfareData = Solstice.playerData.get(context.getSource().getPlayer().getUuid()).getData(WelfareData.class);
@@ -138,6 +137,7 @@ public class KromerCommand {
 
                             Wallet wallet = Kromer.database.getWallet(context.getSource().getPlayer().getUuid());
                             if(wallet == null) return 0;
+
 
                             //  todo get balance
                         // remove that amount from balance via kromer.givemoney(-balance) ok
