@@ -8,6 +8,7 @@ import cc.reconnected.kromer.Kromer;
 import cc.reconnected.kromer.Locale;
 import cc.reconnected.kromer.database.Wallet;
 import cc.reconnected.kromer.database.WelfareData;
+import cc.reconnected.kromer.models.domain.KromerArgumentType;
 import cc.reconnected.kromer.models.errors.GenericError;
 import cc.reconnected.kromer.models.responses.GetAddressResponse;
 import cc.reconnected.kromer.models.responses.MotdResponse;
@@ -31,6 +32,16 @@ import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.text.ClickEvent;
 import net.minecraft.text.Text;
 import net.minecraft.util.Formatting;
+
+import java.math.BigDecimal;
+import java.net.URI;
+import java.net.URISyntaxException;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+import java.util.Objects;
+
+import static net.minecraft.server.command.CommandManager.argument;
+import static net.minecraft.server.command.CommandManager.literal;
 
 public class KromerCommand {
 
@@ -115,6 +126,18 @@ public class KromerCommand {
                 }
                 return Command.SINGLE_SUCCESS;
             });
+        var privatekeyCommand = literal("privatekey").executes(context -> {
+            Wallet wallet = Kromer.database.getWallet(context.getSource().getPlayer().getUuid());
+            if(wallet == null) return 0;
+
+            context.getSource().sendFeedback(() -> Locale.use(Locale.Messages.KROMER_PRIVATEKEY, wallet.address, wallet.address, wallet.privatekey, wallet.privatekey), false);
+            if(!Kromer.kromerStatus) {
+                context.getSource().sendFeedback(Text::empty, false);
+                context.getSource().sendFeedback(() -> Locale.use(Locale.Messages.KROMER_UNAVAILABLE), false);
+                return 0;
+            }
+            return Command.SINGLE_SUCCESS;
+        });
 
         var giveWalletCommand = literal("givewallet").then(
                 argument("player", EntityArgumentType.player())
@@ -134,7 +157,7 @@ public class KromerCommand {
 
         var setMoneyCommand = literal("addMoney").then(
                 argument("player", EntityArgumentType.player()).then(
-                        argument("amount", IntegerArgumentType.integer())
+                        argument("amount", KromerArgumentType.kromerArg(true, false))
                             .requires(source -> source.hasPermissionLevel(4))
                             .executes(context -> {
                                 ServerPlayerEntity player =
@@ -142,7 +165,7 @@ public class KromerCommand {
                                         context,
                                         "player"
                                     );
-                                int amount = IntegerArgumentType.getInteger(
+                                var amount = KromerArgumentType.getBigDecimal(
                                     context,
                                     "amount"
                                 );
@@ -292,13 +315,7 @@ public class KromerCommand {
                     })
             );
 
-        var rootCommand = literal("kromer")
-            .then(versionCommand)
-            .then(giveWalletCommand)
-            .then(setMoneyCommand)
-            .then(executeWelfare)
-            .then(infoCommand)
-            .then(muteWelfare);
+        var rootCommand = literal("kromer").then(versionCommand).then(infoCommand).then(privatekeyCommand).then(muteWelfare).requires(serverCommandSource -> serverCommandSource.hasPermissionLevel(4)).then(giveWalletCommand).then(setMoneyCommand).then(executeWelfare);
 
         dispatcher.register(rootCommand);
     }

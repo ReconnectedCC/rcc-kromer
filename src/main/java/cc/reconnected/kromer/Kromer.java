@@ -38,6 +38,21 @@ import net.minecraft.util.Pair;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.math.BigDecimal;
+import java.math.MathContext;
+import java.math.RoundingMode;
+import java.net.URI;
+import java.net.URISyntaxException;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+import java.time.Duration;
+import java.time.LocalDateTime;
+import java.util.*;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
+
 public class Kromer implements DedicatedServerModInitializer {
 
     public static Logger LOGGER = LoggerFactory.getLogger("rcc-kromer");
@@ -184,7 +199,7 @@ public class Kromer implements DedicatedServerModInitializer {
                 (config.SupporterMultiplier() * playersWithSupporter.size());
         }
 
-        float finalWelfare = welfare;
+        BigDecimal finalWelfare = new BigDecimal(welfare, new MathContext(2, RoundingMode.DOWN));
 
         client.server
             .getPlayerManager()
@@ -307,9 +322,9 @@ public class Kromer implements DedicatedServerModInitializer {
         float kroAmountRaw = (float) (((double) solsticeData.activeTime /
                 3600) *
             config.HourlyWelfare());
-        float kroAmount = Math.round(kroAmountRaw * 100f) / 100f;
+        BigDecimal kroAmount = new BigDecimal(kroAmountRaw, new MathContext(2, RoundingMode.DOWN));
 
-        if (kroAmount != 0 && player != null) {
+        if (kroAmount.equals(BigDecimal.ZERO) && player != null) {
             player.sendMessage(
                 Locale.use(Locale.Messages.RETROACTIVE, kroAmount)
             );
@@ -317,7 +332,7 @@ public class Kromer implements DedicatedServerModInitializer {
 
         API.createWallet(name, uuid)
             .whenComplete((wallet, throwable) -> {
-                if (kroAmount != 0) {
+                if (!kroAmount.equals(BigDecimal.ZERO)) {
                     API.giveMoney(wallet, kroAmount);
                 }
             })

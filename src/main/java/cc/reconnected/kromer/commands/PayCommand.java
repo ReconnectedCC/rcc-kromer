@@ -6,6 +6,7 @@ import static net.minecraft.server.command.CommandManager.literal;
 import cc.reconnected.kromer.Kromer;
 import cc.reconnected.kromer.Locale;
 import cc.reconnected.kromer.database.Wallet;
+import cc.reconnected.kromer.models.domain.KromerArgumentType;
 import cc.reconnected.kromer.models.errors.GenericError;
 import com.google.gson.Gson;
 import com.google.gson.JsonObject;
@@ -15,12 +16,22 @@ import com.mojang.brigadier.CommandDispatcher;
 import com.mojang.brigadier.arguments.FloatArgumentType;
 import com.mojang.brigadier.arguments.StringArgumentType;
 import com.mojang.brigadier.context.CommandContext;
+import net.minecraft.command.CommandRegistryAccess;
+import net.minecraft.server.command.CommandManager;
+import net.minecraft.server.command.ServerCommandSource;
+import net.minecraft.server.network.ServerPlayerEntity;
+import net.minecraft.text.Text;
+import net.minecraft.util.Formatting;
+import net.minecraft.util.UserCache;
+
+import java.math.BigDecimal;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Objects;
 import java.util.UUID;
 import java.util.stream.Collectors;
 import net.minecraft.command.CommandRegistryAccess;
@@ -38,7 +49,7 @@ public class PayCommand {
     private static class PendingPayment {
 
         String to;
-        float amount;
+        BigDecimal amount;
         String metadata;
         long createdAt; // in milliseconds
     }
@@ -55,7 +66,7 @@ public class PayCommand {
         dispatcher.register(
             literal("pay").then(
                 argument("recipient", StringArgumentType.word()).then(
-                    argument("amount", FloatArgumentType.floatArg())
+                    argument("amount", KromerArgumentType.kromerArg())
                         .executes(PayCommand::executePay)
                         .then(
                             argument(
@@ -100,6 +111,9 @@ public class PayCommand {
         }
 
         if (recipientInput.matches("^k[a-z0-9]{9}$")) {
+            kristAddress = recipientInput;
+            recipientName = recipientInput;
+        } else if (recipientInput.matches("^(?:([a-z0-9-_]{1,32})@)?([a-z0-9]{1,64})\\.kro$")) {
             kristAddress = recipientInput;
             recipientName = recipientInput;
         } else {
@@ -148,8 +162,7 @@ public class PayCommand {
             recipientName = otherProfile.getName();
         }
 
-        float rawAmount = FloatArgumentType.getFloat(context, "amount");
-        float amount = Math.round(rawAmount * 100f) / 100f;
+        BigDecimal amount = KromerArgumentType.getBigDecimal(context, "amount");
 
         ServerPlayerEntity thisPlayer = context.getSource().getPlayer();
 
@@ -236,9 +249,16 @@ public class PayCommand {
     }
 
     private static int confirmPay(CommandContext<ServerCommandSource> context) {
-        ServerPlayerEntity player = context.getSource().getPlayer();
-
-        PendingPayment payment = pendingPayments.remove(player.getUuid());
+        PendingPayment payment;
+        ServerPlayerEntity player;
+        try {
+            player = Objects.requireNonNull(context.getSource().getPlayer());
+            payment = pendingPayments.remove(Objects.requireNonNull(context.getSource().getPlayer()).getUuid());
+        } catch (NullPointerException e) {
+            // Player is not online or command source is not a player
+            context.getSource().sendFeedback(() -> Text.literal("You must be online to use this command.").formatted(Formatting.RED), false);
+            return 0;
+        }
 
         if (payment == null) {
             context
@@ -265,7 +285,7 @@ public class PayCommand {
         JsonObject obj = new JsonObject();
         obj.addProperty("privatekey", wallet.privatekey);
         obj.addProperty("to", payment.to);
-        obj.addProperty("amount", payment.amount);
+        obj.addProperty("amount", payment.amount.floatValue());
         obj.addProperty("metadata", payment.metadata);
 
         HttpRequest request;

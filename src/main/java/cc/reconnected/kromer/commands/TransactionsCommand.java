@@ -11,11 +11,8 @@ import cc.reconnected.kromer.models.responses.GetTransactionsFromAddressResponse
 import com.google.gson.Gson;
 import com.google.gson.JsonSyntaxException;
 import com.mojang.brigadier.CommandDispatcher;
-import com.mojang.brigadier.arguments.FloatArgumentType;
 import com.mojang.brigadier.arguments.IntegerArgumentType;
-import com.mojang.brigadier.arguments.StringArgumentType;
 import com.mojang.brigadier.context.CommandContext;
-import com.mojang.brigadier.exceptions.CommandSyntaxException;
 import eu.pb4.placeholders.api.TextParserUtils;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
@@ -26,6 +23,13 @@ import net.minecraft.server.command.ServerCommandSource;
 import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.text.Text;
 import net.minecraft.util.Formatting;
+
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+import java.util.Objects;
+
+import static net.minecraft.server.command.CommandManager.argument;
+import static net.minecraft.server.command.CommandManager.literal;
 
 public class TransactionsCommand {
 
@@ -44,10 +48,7 @@ public class TransactionsCommand {
                 )
         );
     }
-
-    public static int checkTransactions(
-        CommandContext<ServerCommandSource> context
-    ) throws CommandSyntaxException {
+    public static int checkTransactions(CommandContext<ServerCommandSource> context) {
         var source = context.getSource();
         var player = source.getPlayer();
         assert player != null;
@@ -98,77 +99,26 @@ public class TransactionsCommand {
                     return;
                 }
 
-                if (response.statusCode() != 200) {
-                    GenericError error;
-                    try {
-                        error = Kromer.gson.fromJson(
-                            response.body(),
-                            GenericError.class
-                        );
-                    } catch (JsonSyntaxException jse) {
-                        context
-                            .getSource()
-                            .sendFeedback(
-                                () ->
-                                    Locale.use(
-                                        Locale.Messages.ERROR,
-                                        String.valueOf(response.statusCode())
-                                    ),
-                                false
-                            );
-                        return;
-                    }
-                    context
-                        .getSource()
-                        .sendFeedback(
-                            () ->
-                                Locale.use(
-                                    Locale.Messages.ERROR,
-                                    error.error + " (" + error.parameter + ")"
-                                ),
-                            false
-                        );
+            if (response.statusCode() != 200) {
+                GenericError error;
+                try {
+                    error = new Gson().fromJson(response.body(), GenericError.class);
+                } catch (JsonSyntaxException jse) {
+                    context.getSource().sendFeedback(() -> Locale.use(Locale.Messages.ERROR, String.valueOf(response.statusCode())), false);
                     return;
                 }
-                GetTransactionsFromAddressResponse responseObj =
-                    Kromer.gson.fromJson(
-                        response.body(),
-                        GetTransactionsFromAddressResponse.class
-                    );
-                context
-                    .getSource()
-                    .sendFeedback(
-                        () ->
-                            Text.literal(
-                                "<green>Transactions for " +
-                                player.getName().getString() +
-                                " on page " +
-                                finalPage +
-                                ":<reset>"
-                            ),
-                        false
-                    );
-                if (responseObj.transactions.isEmpty()) {
-                    context
-                        .getSource()
-                        .sendFeedback(
-                            () ->
-                                Text.literal(
-                                    "<red>No transactions found<reset>"
-                                ),
-                            false
-                        );
-                    return; // Return success with no transactions
-                } else {
-                    for (var transaction : responseObj.transactions) {
-                        String color = Objects.equals(
-                                transaction.type,
-                                "transfer"
-                            )
-                            ? "<aqua>"
-                            : "<gold>";
-                        String transactionText = String.format(
-                            "%s%s: #%s, %s->%s: %.2f KRO, Metadata: '%s'<reset>",
+                context.getSource().sendFeedback(() -> Locale.use(Locale.Messages.ERROR, error.error + " (" + error.parameter + ")"), false);
+                return;
+            }
+            GetTransactionsFromAddressResponse responseObj = new Gson().fromJson(response.body(), GetTransactionsFromAddressResponse.class);
+            context.getSource().sendFeedback(() -> TextParserUtils.formatText("<green>Transactions for " + player.getName().getString() + " on page " + finalPage +":<reset>"), false);
+            if (responseObj.transactions.isEmpty()) {
+                context.getSource().sendFeedback(() -> TextParserUtils.formatText("<red>No transactions found<reset>"), false);
+                return; // Return success with no transactions
+            } else {
+                for (var transaction : responseObj.transactions) {
+                    String color = Objects.equals(transaction.type, "transfer") ? "<aqua>" : "<gold>";
+                    String transactionText = String.format("%s%s: #%s, %s->%s: %.2f KRO, Metadata: '%s'<reset>",
                             color,
                             transaction.time,
                             transaction.id,
