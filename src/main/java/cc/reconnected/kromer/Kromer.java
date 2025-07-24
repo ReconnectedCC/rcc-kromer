@@ -9,9 +9,6 @@ import cc.reconnected.kromer.commands.TransactionsCommand;
 import cc.reconnected.kromer.database.Database;
 import cc.reconnected.kromer.database.Wallet;
 import cc.reconnected.kromer.database.WelfareData;
-import cc.reconnected.kromer.models.domain.Transaction;
-import cc.reconnected.kromer.models.responses.WebsocketStartResponse;
-import cc.reconnected.kromer.websockets.KromerClient;
 import com.google.gson.Gson;
 import com.mojang.authlib.GameProfile;
 import java.net.URI;
@@ -38,6 +35,12 @@ import net.minecraft.util.Pair;
 import org.flywaydb.core.Flyway;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import ovh.sad.jkromer.http.Result;
+import ovh.sad.jkromer.http.internal.CreateWallet;
+import ovh.sad.jkromer.http.internal.GiveMoney;
+import ovh.sad.jkromer.http.misc.GetMotd;
+import ovh.sad.jkromer.http.misc.StartWs;
+import ovh.sad.jkromer.models.Transaction;
 
 public class Kromer implements DedicatedServerModInitializer {
 
@@ -46,7 +49,7 @@ public class Kromer implements DedicatedServerModInitializer {
 
     public static cc.reconnected.kromer.RccKromerConfig config;
     public static HttpClient httpclient = HttpClient.newHttpClient();
-    private static KromerClient client;
+    private static KromerWebsockets client;
     public static Gson gson = new Gson();
 
     public static Boolean kromerStatus = false;
@@ -57,47 +60,43 @@ public class Kromer implements DedicatedServerModInitializer {
         throws URISyntaxException {
         LOGGER.debug("Connecting to Websocket..");
 
-        API.startWs()
-            .whenComplete((response, throwable) -> {
-                if (errorHandler(response, throwable)) {
-                    LOGGER.debug(
-                        "Websocket URL was not found. Retrying in 1 second."
-                    );
+        StartWs.execute()
+                .whenComplete((b, ex) -> {
+                    switch (b) {
+                        case Result.Ok<StartWs.StartWsResponse> ok -> {
+                            LOGGER.debug("Websocket URL found: {}", ok.value().url);
 
-                    new Timer("WebSocket-Retry", true).schedule(
-                            new TimerTask() {
-                                @Override
-                                public void run() {
-                                    try {
-                                        connectWebsocket(server);
-                                    } catch (URISyntaxException ex) {
-                                        throw new RuntimeException(ex);
-                                    }
-                                }
-                            },
-                            1000
-                        );
+                            try {
+                                client = new KromerWebsockets(new URI(ok.value().url), server);
+                            } catch (URISyntaxException e) {
+                                throw new RuntimeException(e);
+                            }
 
-                    return;
-                }
+                            client.connect();
 
-                WebsocketStartResponse resp = Kromer.gson.fromJson(
-                    response.body(),
-                    WebsocketStartResponse.class
-                );
-                LOGGER.debug("Websocket URL found: {}", resp.url);
+                            LOGGER.debug("Websocket connected.");
+                        }
+                        case Result.Err<StartWs.StartWsResponse> err -> {
+                            LOGGER.debug(
+                                    "Websocket URL was not found. Retrying in 1 second."
+                            );
 
-                try {
-                    client = new KromerClient(new URI(resp.url), server);
-                } catch (URISyntaxException e) {
-                    throw new RuntimeException(e);
-                }
-
-                client.connect();
-
-                LOGGER.debug("Websocket connected.");
-            })
-            .join();
+                            new Timer("WebSocket-Retry", true).schedule(
+                                    new TimerTask() {
+                                        @Override
+                                        public void run() {
+                                            try {
+                                                connectWebsocket(server);
+                                            } catch (URISyntaxException ex) {
+                                                throw new RuntimeException(ex);
+                                            }
+                                        }
+                                        },
+                                    1000
+                            );
+                        }
+                    }
+                });
     }
 
     public void onInitializeServer() {
@@ -191,7 +190,7 @@ public class Kromer implements DedicatedServerModInitializer {
                 if (
                     Solstice.modules.getModule(AfkModule.class).isPlayerAfk(p)
                 ) return;
-                API.giveMoney(wallet, finalWelfare);
+                GiveMoney.execute(config.KromerKey(), finalWelfare, wallet.address).join();
                 if (
                     !Solstice.playerData
                         .get(p.getUuid())
@@ -309,14 +308,13 @@ public class Kromer implements DedicatedServerModInitializer {
                 Locale.use(Locale.Messages.RETROACTIVE, kroAmount)
             );
         }
+        var createWalletResult = CreateWallet.execute(config.KromerKey(), name, uuid.toString()).join();
 
-        API.createWallet(name, uuid)
-            .whenComplete((wallet, throwable) -> {
-                if (kroAmount != 0) {
-                    API.giveMoney(wallet, kroAmount);
-                }
-            })
-            .join();
+        if (createWalletResult instanceof Result.Ok(CreateWallet.CreateWalletResponse createWallet)) {
+            if(kroAmount != 0) {
+                GiveMoney.execute(config.KromerKey(), kroAmount, createWallet.address).join();
+            }
+        }
     }
 
     public static Boolean errorHandler(

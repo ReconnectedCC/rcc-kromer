@@ -30,7 +30,9 @@ repositories {
         name = "alexdevs"
         url ="https://maven.alexdevs.me/releases"
     }
-
+    maven {
+        url = "https://repo.sad.ovh/releases"
+    }
 
     // SOLSTICE DEPS
     maven { url 'https://maven.nucleoid.xyz' }
@@ -64,6 +66,7 @@ dependencies {
 
     modImplementation "me.alexdevs:solstice:${project.solstice_version}"
     implementation "org.xerial:sqlite-jdbc:${project.sqlite_jdbc}"
+    implementation "ovh.sad:jkromer:0.3"
 
     annotationProcessor "io.wispforest:owo-lib:${project.owo_version}"
 
@@ -104,7 +107,7 @@ processResources {
     }
 }
 
-def targetJavaVersion = 17
+def targetJavaVersion = 21
 tasks.withType(JavaCompile).configureEach {
     it.options.encoding = "UTF-8"
     if (targetJavaVersion >= 10 || JavaVersion.current().isJava10Compatible()) {

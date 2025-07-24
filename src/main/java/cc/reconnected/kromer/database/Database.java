@@ -1,10 +1,10 @@
 package cc.reconnected.kromer.database;
 
 import cc.reconnected.kromer.Kromer;
-import cc.reconnected.kromer.models.domain.Transaction;
 import java.sql.*;
 import java.util.UUID;
 import net.minecraft.util.Pair;
+import ovh.sad.jkromer.models.Transaction;
 
 public class Database {
 

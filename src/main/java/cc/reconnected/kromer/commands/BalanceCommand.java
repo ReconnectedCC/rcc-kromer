@@ -2,7 +2,6 @@ package cc.reconnected.kromer.commands;
 
 import static net.minecraft.server.command.CommandManager.literal;
 
-import cc.reconnected.kromer.API;
 import cc.reconnected.kromer.Kromer;
 import cc.reconnected.kromer.Locale;
 import cc.reconnected.kromer.database.Wallet;
@@ -11,6 +10,9 @@ import com.mojang.brigadier.context.CommandContext;
 import net.minecraft.command.CommandRegistryAccess;
 import net.minecraft.server.command.CommandManager;
 import net.minecraft.server.command.ServerCommandSource;
+import ovh.sad.jkromer.http.Result;
+import ovh.sad.jkromer.http.addresses.GetAddress;
+import ovh.sad.jkromer.models.Address;
 
 public class BalanceCommand {
 
@@ -53,23 +55,15 @@ public class BalanceCommand {
                 );
             return 0;
         }
-
-        API.getBalance(wallet.address, context)
-            .whenComplete((response, throwable) -> {
-                if (throwable != null) return; // getbalance handles via context
-                context
-                    .getSource()
-                    .sendFeedback(
-                        () ->
-                            Locale.use(
-                                Locale.Messages.BALANCE,
-                                response.address.balance
-                            ),
-                        false
-                    );
-            })
-            .join();
-
+        GetAddress.execute(wallet.address).whenComplete((b, ex) -> {
+            switch (b) {
+                case Result.Ok<GetAddress.GetAddressBody> ok -> context.getSource().sendFeedback(() -> Locale.use(Locale.Messages.BALANCE, ok.value().address.balance), false);
+                case Result.Err<GetAddress.GetAddressBody> err -> context.getSource()
+                        .sendFeedback(() ->
+                                Locale.use(Locale.Messages.ERROR, "Error: " + err.error() + " param: " + err.error().parameter())
+                        , false);
+            }
+        }).join();
         return 1;
     }
 }

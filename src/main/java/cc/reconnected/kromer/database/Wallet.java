@@ -1,6 +1,7 @@
 package cc.reconnected.kromer.database;
 
-import cc.reconnected.kromer.models.domain.Transaction;
+import ovh.sad.jkromer.models.Transaction;
+
 import java.util.Arrays;
 
 public class Wallet {

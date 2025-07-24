@@ -3,23 +3,13 @@ package cc.reconnected.kromer.commands;
 import static net.minecraft.server.command.CommandManager.argument;
 import static net.minecraft.server.command.CommandManager.literal;
 
-import cc.reconnected.kromer.API;
 import cc.reconnected.kromer.Kromer;
 import cc.reconnected.kromer.Locale;
 import cc.reconnected.kromer.database.Wallet;
 import cc.reconnected.kromer.database.WelfareData;
-import cc.reconnected.kromer.models.errors.GenericError;
-import cc.reconnected.kromer.models.responses.GetAddressResponse;
-import cc.reconnected.kromer.models.responses.MotdResponse;
-import com.google.gson.Gson;
-import com.google.gson.JsonSyntaxException;
 import com.mojang.brigadier.Command;
 import com.mojang.brigadier.CommandDispatcher;
 import com.mojang.brigadier.arguments.IntegerArgumentType;
-import java.net.URI;
-import java.net.URISyntaxException;
-import java.net.http.HttpRequest;
-import java.net.http.HttpResponse;
 import java.util.Objects;
 import me.alexdevs.solstice.Solstice;
 import net.fabricmc.loader.api.FabricLoader;
@@ -31,6 +21,10 @@ import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.text.ClickEvent;
 import net.minecraft.text.Text;
 import net.minecraft.util.Formatting;
+import ovh.sad.jkromer.http.Result;
+import ovh.sad.jkromer.http.addresses.GetAddress;
+import ovh.sad.jkromer.http.internal.GiveMoney;
+import ovh.sad.jkromer.http.misc.GetMotd;
 
 public class KromerCommand {
 
@@ -47,39 +41,16 @@ public class KromerCommand {
                     .getVersion()
                     .getFriendlyString(); // WHY
 
-                HttpRequest request;
-                try {
-                    request = HttpRequest.newBuilder()
-                        .uri(
-                            new URI(
-                                Kromer.config.KromerURL() + "api/krist/motd"
-                            )
-                        )
-                        .GET()
-                        .build();
-                } catch (URISyntaxException e) {
-                    throw new RuntimeException(e);
-                }
-                Kromer.httpclient
-                    .sendAsync(request, HttpResponse.BodyHandlers.ofString())
-                    .whenComplete((response, throwable) -> {
-                        MotdResponse motdResponse = Kromer.gson.fromJson(
-                            response.body(),
-                            MotdResponse.class
-                        );
-
-                        context
-                            .getSource()
-                            .sendFeedback(
-                                () ->
-                                    Locale.use(
-                                        Locale.Messages.VERSION,
-                                        modVersion,
-                                        motdResponse.motdPackage.version
-                                    ),
-                                false
-                            );
-                    });
+                GetMotd.execute().whenComplete((b, ex) -> {
+                    switch (b) {
+                        case Result.Ok<GetMotd.GetMotdBody> ok -> context.getSource().sendFeedback(() -> Locale.use(Locale.Messages.VERSION, modVersion,
+                                ok.value().motdPackage.version), false);
+                        case Result.Err<GetMotd.GetMotdBody> err -> context.getSource()
+                                .sendFeedback(() ->
+                                                Locale.use(Locale.Messages.ERROR, "Error: " + err.error() + " param: " + err.error().parameter())
+                                        , false);
+                    }
+                }).join();
                 return 1;
             });
 
@@ -146,22 +117,24 @@ public class KromerCommand {
                                     context,
                                     "amount"
                                 );
+                                GiveMoney
+                                        .execute(Kromer.config.KromerKey(), amount, Kromer.database.getWallet(player.getUuid()).address)
+                                        .whenComplete((b, ex) -> {
+                                            switch (b) {
+                                                case Result.Ok<GiveMoney.GiveMoneyResponse> ok -> context.getSource().sendFeedback(() ->
+                                                        Locale.use(
+                                                                Locale.Messages.ADDED_KRO,
+                                                                amount,
+                                                                player.getEntityName()
+                                                        ), false);
+                                                case Result.Err<GiveMoney.GiveMoneyResponse> err -> context.getSource()
+                                                        .sendFeedback(() ->
+                                                                        Locale.use(Locale.Messages.ERROR, "Error: " + err.error() + " param: " + err.error().parameter())
+                                                                , false);
+                                            }
+                                        })
+                                        .join();
 
-                                API.giveMoney(
-                                    Kromer.database.getWallet(player.getUuid()),
-                                    amount
-                                );
-                                context
-                                    .getSource()
-                                    .sendFeedback(
-                                        () ->
-                                            Locale.use(
-                                                Locale.Messages.ADDED_KRO,
-                                                amount,
-                                                player.getEntityName()
-                                            ),
-                                        false
-                                    );
                                 return Command.SINGLE_SUCCESS;
                             })
                     )
@@ -282,12 +255,7 @@ public class KromerCommand {
                             context.getSource().getPlayer().getUuid()
                         );
                         if (wallet == null) return 0;
-                        API.getBalance(wallet.address, context)
-                            .whenComplete((response, throwable) -> {
-                                if (throwable != null) return; // getbalance handles via context
-                                // response.address.balance
-                            })
-                            .join();
+
                         return 1;
                     })
             );
