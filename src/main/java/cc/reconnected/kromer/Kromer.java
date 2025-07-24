@@ -35,6 +35,8 @@ import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.util.Pair;
+import org.flywaydb.core.Flyway;
+import org.jooq.impl.DSL;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -100,18 +102,12 @@ public class Kromer implements DedicatedServerModInitializer {
     }
 
     public void onInitializeServer() {
-        // Make backup of the database if it exists
-        try {
-            if (new java.io.File("rcc-kromer.sqlite").exists()) {
-                java.nio.file.Files.copy(
-                    java.nio.file.Paths.get("rcc-kromer.sqlite"),
-                    java.nio.file.Paths.get("rcc-kromer.sqlite.bak"),
-                    java.nio.file.StandardCopyOption.REPLACE_EXISTING
-                );
-            }
-        } catch (java.io.IOException e) {
-            e.printStackTrace();
-        }
+        Flyway flyway = Flyway.configure()
+                .dataSource("jdbc:sqlite:rcc-kromer2.db", null, null)
+                .load();
+
+        flyway.migrate();
+
         Solstice.playerData.registerData(
             "welfare",
             WelfareData.class,

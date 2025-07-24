@@ -15,20 +15,6 @@ public class Database {
             connection = DriverManager.getConnection(
                 "jdbc:sqlite:rcc-kromer.sqlite"
             );
-
-            Statement statement = connection.createStatement();
-            statement.executeUpdate(
-                """
-                    CREATE TABLE IF NOT EXISTS wallets (
-                        address TEXT PRIMARY KEY,
-                        uuid TEXT,
-                        privatekey TEXT,
-                        outgoingNotSeen TEXT,
-                        incomingNotSeen TEXT
-                    )
-                """
-            );
-            statement.close();
         } catch (SQLException e) {
             e.printStackTrace();
         }

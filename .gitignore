@@ -8,3 +8,6 @@
 .settings
 .factorypath
 .classpath
+
+rcc-kromer2.db
+src/generated

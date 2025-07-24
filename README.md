@@ -1,0 +1,1 @@
+Run the `flywayMigrate` task to create the development database, and run `generateJooq` to create DSL definitions.
