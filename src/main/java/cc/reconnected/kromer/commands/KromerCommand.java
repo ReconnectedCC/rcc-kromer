@@ -22,7 +22,6 @@ import net.minecraft.text.ClickEvent;
 import net.minecraft.text.Text;
 import net.minecraft.util.Formatting;
 import ovh.sad.jkromer.http.Result;
-import ovh.sad.jkromer.http.addresses.GetAddress;
 import ovh.sad.jkromer.http.internal.GiveMoney;
 import ovh.sad.jkromer.http.misc.GetMotd;
 

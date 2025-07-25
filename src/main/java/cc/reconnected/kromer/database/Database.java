@@ -3,12 +3,15 @@ package cc.reconnected.kromer.database;
 import cc.reconnected.kromer.Kromer;
 import java.sql.*;
 import java.util.UUID;
+
+import com.google.gson.Gson;
 import net.minecraft.util.Pair;
 import ovh.sad.jkromer.models.Transaction;
 
 public class Database {
 
     private Connection connection;
+    public Gson gson = new Gson();
 
     public Database() {
         try {
@@ -18,7 +21,8 @@ public class Database {
         } catch (SQLException e) {
             e.printStackTrace();
         }
-    }
+    }    
+
 
     public void setWallet(UUID playerUuid, Wallet wallet) {
         try {
@@ -34,14 +38,14 @@ public class Database {
                 stmt.setString(3, wallet.privatekey);
                 stmt.setString(
                     4,
-                    Kromer.gson.toJson(
+                    gson.toJson(
                         wallet.incomingNotSeen,
                         Transaction[].class
                     )
                 );
                 stmt.setString(
                     5,
-                    Kromer.gson.toJson(
+                    gson.toJson(
                         wallet.outgoingNotSeen,
                         Transaction[].class
                     )
@@ -61,14 +65,14 @@ public class Database {
                 stmt.setString(2, wallet.privatekey);
                 stmt.setString(
                     3,
-                    Kromer.gson.toJson(
+                    gson.toJson(
                         wallet.incomingNotSeen,
                         Transaction[].class
                     )
                 );
                 stmt.setString(
                     4,
-                    Kromer.gson.toJson(
+                    gson.toJson(
                         wallet.outgoingNotSeen,
                         Transaction[].class
                     )
@@ -96,11 +100,11 @@ public class Database {
                 return new Wallet(
                     rs.getString("address"),
                     rs.getString("privatekey"),
-                    Kromer.gson.fromJson(
+                    gson.fromJson(
                         rs.getString("incomingNotSeen"),
                         Transaction[].class
                     ),
-                    Kromer.gson.fromJson(
+                    gson.fromJson(
                         rs.getString("outgoingNotSeen"),
                         Transaction[].class
                     )
@@ -127,11 +131,11 @@ public class Database {
                 Wallet wallet = new Wallet(
                     address,
                     rs.getString("privatekey"),
-                    Kromer.gson.fromJson(
+                    gson.fromJson(
                         rs.getString("incomingNotSeen"),
                         Transaction[].class
                     ),
-                    Kromer.gson.fromJson(
+                    gson.fromJson(
                         rs.getString("outgoingNotSeen"),
                         Transaction[].class
                     )

@@ -5,7 +5,6 @@ import static net.minecraft.server.command.CommandManager.literal;
 
 import cc.reconnected.kromer.Kromer;
 import cc.reconnected.kromer.Locale;
-import cc.reconnected.kromer.database.Wallet;
 import com.mojang.brigadier.CommandDispatcher;
 import com.mojang.brigadier.arguments.IntegerArgumentType;
 import com.mojang.brigadier.context.CommandContext;

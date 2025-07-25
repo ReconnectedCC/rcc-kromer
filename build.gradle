@@ -52,7 +52,6 @@ dependencies {
     minecraft "com.mojang:minecraft:${project.minecraft_version}"
     mappings "net.fabricmc:yarn:${project.yarn_mappings}:v2"
     modImplementation "net.fabricmc:fabric-loader:${project.loader_version}"
-    implementation "org.java-websocket:Java-WebSocket:${project.jws_version}"
     implementation 'org.flywaydb:flyway-core:10.14.0'
 
     modImplementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_version}"
@@ -66,7 +65,12 @@ dependencies {
 
     modImplementation "me.alexdevs:solstice:${project.solstice_version}"
     implementation "org.xerial:sqlite-jdbc:${project.sqlite_jdbc}"
-    implementation "ovh.sad:jkromer:0.3"
+
+    // START jKROMER
+    implementation "ovh.sad:jkromer:0.4"
+
+    implementation "org.java-websocket:Java-WebSocket:${project.jws_version}"
+    // END jKROMER
 
     annotationProcessor "io.wispforest:owo-lib:${project.owo_version}"
 

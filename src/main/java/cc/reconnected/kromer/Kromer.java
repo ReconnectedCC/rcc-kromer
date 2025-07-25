@@ -35,11 +35,12 @@ import net.minecraft.util.Pair;
 import org.flywaydb.core.Flyway;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import ovh.sad.jkromer.Errors;
 import ovh.sad.jkromer.http.Result;
 import ovh.sad.jkromer.http.internal.CreateWallet;
 import ovh.sad.jkromer.http.internal.GiveMoney;
-import ovh.sad.jkromer.http.misc.GetMotd;
 import ovh.sad.jkromer.http.misc.StartWs;
+import ovh.sad.jkromer.jKromer;
 import ovh.sad.jkromer.models.Transaction;
 
 public class Kromer implements DedicatedServerModInitializer {
@@ -48,12 +49,9 @@ public class Kromer implements DedicatedServerModInitializer {
     public static Database database = new Database();
 
     public static cc.reconnected.kromer.RccKromerConfig config;
-    public static HttpClient httpclient = HttpClient.newHttpClient();
     private static KromerWebsockets client;
-    public static Gson gson = new Gson();
 
     public static Boolean kromerStatus = false;
-    public static String currencyName = "KRO";
     public static int welfareQueued = 0;
 
     public static void connectWebsocket(MinecraftServer server)
@@ -100,8 +98,10 @@ public class Kromer implements DedicatedServerModInitializer {
     }
 
     public void onInitializeServer() {
+
         Flyway flyway = Flyway.configure()
-                .dataSource("jdbc:sqlite:rcc-kromer2.db", null, null)
+                .dataSource("jdbc:sqlite:rcc-kromer.sqlite", null, null)
+                .baselineOnMigrate(true)
                 .load();
 
         flyway.migrate();
@@ -133,6 +133,8 @@ public class Kromer implements DedicatedServerModInitializer {
         );
 
         config = cc.reconnected.kromer.RccKromerConfig.createAndLoad();
+        jKromer.endpoint_raw = config.KromerURL();
+        jKromer.endpoint = jKromer.endpoint_raw + "/api/krist";
 
         ScheduledExecutorService scheduler =
             Executors.newSingleThreadScheduledExecutor();
@@ -308,40 +310,25 @@ public class Kromer implements DedicatedServerModInitializer {
                 Locale.use(Locale.Messages.RETROACTIVE, kroAmount)
             );
         }
-        var createWalletResult = CreateWallet.execute(config.KromerKey(), name, uuid.toString()).join();
+
+        var createWalletResult = CreateWallet.execute(config.KromerKey(), name, UUID.randomUUID().toString()).join();
 
         if (createWalletResult instanceof Result.Ok(CreateWallet.CreateWalletResponse createWallet)) {
+            Transaction[] array = {};
+            Wallet wallet = new Wallet(
+                    createWallet.address,
+                    createWallet.privatekey,
+                    array,
+                    array
+            );
+            database.setWallet(uuid, wallet);
+
             if(kroAmount != 0) {
                 GiveMoney.execute(config.KromerKey(), kroAmount, createWallet.address).join();
             }
-        }
-    }
-
-    public static Boolean errorHandler(
-        HttpResponse<String> response,
-        Throwable throwable
-    ) {
-        if (throwable != null) {
-            LOGGER.error(
-                "Failed to send request to Kromer, C: {}, M: {}",
-                throwable.getCause(),
-                throwable.getMessage()
-            );
-            return true;
-        }
-        if (response.statusCode() != 200) {
-            LOGGER.error(
-                "Failed to send request to Kromer, S: {}, B: {}",
-                response.statusCode(),
-                response.body()
-            );
-            return true;
-        }
-        if (response.body() == null) {
-            LOGGER.error("Failed to send request to  Kromer: No response body");
-            return true;
+        } else if (createWalletResult instanceof Result.Err(Errors.ErrorResponse err)) {
+            System.out.println("Was not able to give user " + name + " their wallet. " + err.error() + ", param: " + err.parameter());
         }
 
-        return false;
     }
 }
