@@ -195,7 +195,7 @@ public class Kromer implements DedicatedServerModInitializer {
                 (config.SupporterMultiplier() * playersWithSupporter.size());
         }
 
-        BigDecimal finalWelfare = new BigDecimal(welfare, new MathContext(2, RoundingMode.DOWN));
+        float finalWelfare = Math.round(welfare * 100f) / 100f;
 
         client.server
             .getPlayerManager()
@@ -210,13 +210,15 @@ public class Kromer implements DedicatedServerModInitializer {
                 WelfareData welfareData = Solstice.playerData
                         .get(p.getUuid())
                         .getData(WelfareData.class);
-                GiveMoney.execute(config.KromerKey(), finalWelfare, wallet.address).join();
                 if (
                     !(welfareData.welfareMuted || welfareData.optedOut)
                 ) {
                     p.sendMessage(
                         Locale.use(Locale.Messages.WELFARE_GIVEN, finalWelfare)
                     );
+                }
+                if(!welfareData.optedOut) {
+                    GiveMoney.execute(config.KromerKey(), finalWelfare, wallet.address).join();
                 }
             });
     }
@@ -317,10 +319,10 @@ public class Kromer implements DedicatedServerModInitializer {
             .getPlayerData(uuid);
         float kroAmountRaw = (float) (((double) solsticeData.activeTime /
                 3600) *
-            config.HourlyWelfare());
-        BigDecimal kroAmount = new BigDecimal(kroAmountRaw, new MathContext(2, RoundingMode.DOWN));
+                config.HourlyWelfare());
+        float kroAmount = Math.round(kroAmountRaw * 100f) / 100f;
 
-        if (kroAmount.equals(BigDecimal.ZERO) && player != null) {
+        if (kroAmount != 0 && player != null) {
             player.sendMessage(
                 Locale.use(Locale.Messages.RETROACTIVE, kroAmount)
             );

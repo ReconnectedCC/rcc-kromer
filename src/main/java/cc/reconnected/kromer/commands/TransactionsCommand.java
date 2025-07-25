@@ -8,6 +8,7 @@ import cc.reconnected.kromer.Locale;
 import com.mojang.brigadier.CommandDispatcher;
 import com.mojang.brigadier.arguments.IntegerArgumentType;
 import com.mojang.brigadier.context.CommandContext;
+import com.mojang.brigadier.exceptions.CommandSyntaxException;
 import eu.pb4.placeholders.api.TextParserUtils;
 import net.minecraft.command.CommandRegistryAccess;
 import net.minecraft.server.command.CommandManager;
@@ -20,12 +21,6 @@ import ovh.sad.jkromer.http.Result;
 
 import java.util.Objects;
 
-import java.net.http.HttpRequest;
-import java.net.http.HttpResponse;
-import java.util.Objects;
-
-import static net.minecraft.server.command.CommandManager.argument;
-import static net.minecraft.server.command.CommandManager.literal;
 
 public class TransactionsCommand {
 

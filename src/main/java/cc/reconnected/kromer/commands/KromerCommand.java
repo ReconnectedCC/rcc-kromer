@@ -9,6 +9,7 @@ import cc.reconnected.kromer.database.Wallet;
 import cc.reconnected.kromer.database.WelfareData;
 import com.mojang.brigadier.Command;
 import com.mojang.brigadier.CommandDispatcher;
+import com.mojang.brigadier.arguments.FloatArgumentType;
 import com.mojang.brigadier.arguments.IntegerArgumentType;
 import java.util.Objects;
 import me.alexdevs.solstice.Solstice;
@@ -27,7 +28,6 @@ import ovh.sad.jkromer.http.internal.GiveMoney;
 import ovh.sad.jkromer.http.misc.GetMotd;
 import ovh.sad.jkromer.http.transactions.MakeTransaction;
 
-import java.math.BigDecimal;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.http.HttpRequest;
@@ -97,18 +97,6 @@ public class KromerCommand {
                 }
                 return Command.SINGLE_SUCCESS;
             });
-        var privatekeyCommand = literal("privatekey").executes(context -> {
-            Wallet wallet = Kromer.database.getWallet(context.getSource().getPlayer().getUuid());
-            if(wallet == null) return 0;
-
-            context.getSource().sendFeedback(() -> Locale.use(Locale.Messages.KROMER_PRIVATEKEY, wallet.address, wallet.address, wallet.privatekey, wallet.privatekey), false);
-            if(!Kromer.kromerStatus) {
-                context.getSource().sendFeedback(Text::empty, false);
-                context.getSource().sendFeedback(() -> Locale.use(Locale.Messages.KROMER_UNAVAILABLE), false);
-                return 0;
-            }
-            return Command.SINGLE_SUCCESS;
-        });
 
         var giveWalletCommand = literal("givewallet").then(
                 argument("player", EntityArgumentType.player())
@@ -127,17 +115,14 @@ public class KromerCommand {
 
         var setMoneyCommand = literal("addMoney").then(
                 argument("player", EntityArgumentType.player()).then(
-                        argument("amount", IntegerArgumentType.integer())
+                        argument("amount", FloatArgumentType.floatArg())
                             .executes(context -> {
                                 ServerPlayerEntity player =
                                     EntityArgumentType.getPlayer(
                                         context,
                                         "player"
                                     );
-                                var amount = KromerArgumentType.getBigDecimal(
-                                    context,
-                                    "amount"
-                                );
+                                var amount = FloatArgumentType.getFloat(context, "amount");
                                 GiveMoney
                                         .execute(Kromer.config.KromerKey(), amount, Kromer.database.getWallet(player.getUuid()).address)
                                         .whenComplete((b, ex) -> {

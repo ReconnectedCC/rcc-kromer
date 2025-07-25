@@ -12,7 +12,6 @@ import net.minecraft.server.command.CommandManager;
 import net.minecraft.server.command.ServerCommandSource;
 import ovh.sad.jkromer.http.Result;
 import ovh.sad.jkromer.http.addresses.GetAddress;
-import ovh.sad.jkromer.jKromer;
 
 public class BalanceCommand {
 

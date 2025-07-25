@@ -32,9 +32,8 @@ public class PayCommand {
         new HashMap<>();
 
     private static class PendingPayment {
-
         String to;
-        BigDecimal amount;
+        float amount;
         String metadata;
         long createdAt; // in milliseconds
     }
@@ -51,7 +50,7 @@ public class PayCommand {
         dispatcher.register(
             literal("pay").then(
                 argument("recipient", StringArgumentType.word()).then(
-                    argument("amount", KromerArgumentType.kromerArg())
+                    argument("amount", FloatArgumentType.floatArg())
                         .executes(PayCommand::executePay)
                         .then(
                             argument(
@@ -147,8 +146,10 @@ public class PayCommand {
             recipientName = otherProfile.getName();
         }
 
-        BigDecimal amount = KromerArgumentType.getBigDecimal(context, "amount");
 
+        float rawAmount = FloatArgumentType.getFloat(context, "amount");
+        float amount = Math.round(rawAmount * 100f) / 100f;
+        
         ServerPlayerEntity thisPlayer = context.getSource().getPlayer();
 
         Wallet wallet = Kromer.database.getWallet(thisPlayer.getUuid());
