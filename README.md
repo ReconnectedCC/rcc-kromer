@@ -1,5 +1,5 @@
 # rcc-kromer [![Build Java](https://github.com/ReconnectedCC/rcc-kromer/actions/workflows/build.yml/badge.svg?branch=master)](https://github.com/ReconnectedCC/rcc-kromer/actions/workflows/build.yml)
-### RecommendedCC's economy mod.
+### ReconnectedCC's economy mod.
 This version of rcc-kromer uses JKromer, which can be found [here](https://github.com/ReconnectedCC/rcc-kromer).
 
 ## Supports
