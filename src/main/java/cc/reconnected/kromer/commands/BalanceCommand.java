@@ -55,8 +55,6 @@ public class BalanceCommand {
                 );
             return 0;
         }
-        System.out.println("Asking for wallet: " + wallet.address);
-        System.out.println(jKromer.endpoint + "/addresses/" + wallet.address);
 
         GetAddress.execute(wallet.address).whenComplete((b, ex) -> {
             switch (b) {
