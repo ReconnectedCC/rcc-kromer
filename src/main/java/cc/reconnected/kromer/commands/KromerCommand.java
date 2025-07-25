@@ -27,6 +27,16 @@ import ovh.sad.jkromer.http.internal.GiveMoney;
 import ovh.sad.jkromer.http.misc.GetMotd;
 import ovh.sad.jkromer.http.transactions.MakeTransaction;
 
+import java.math.BigDecimal;
+import java.net.URI;
+import java.net.URISyntaxException;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+import java.util.Objects;
+
+import static net.minecraft.server.command.CommandManager.argument;
+import static net.minecraft.server.command.CommandManager.literal;
+
 public class KromerCommand {
 
     public static void register(
@@ -87,6 +97,18 @@ public class KromerCommand {
                 }
                 return Command.SINGLE_SUCCESS;
             });
+        var privatekeyCommand = literal("privatekey").executes(context -> {
+            Wallet wallet = Kromer.database.getWallet(context.getSource().getPlayer().getUuid());
+            if(wallet == null) return 0;
+
+            context.getSource().sendFeedback(() -> Locale.use(Locale.Messages.KROMER_PRIVATEKEY, wallet.address, wallet.address, wallet.privatekey, wallet.privatekey), false);
+            if(!Kromer.kromerStatus) {
+                context.getSource().sendFeedback(Text::empty, false);
+                context.getSource().sendFeedback(() -> Locale.use(Locale.Messages.KROMER_UNAVAILABLE), false);
+                return 0;
+            }
+            return Command.SINGLE_SUCCESS;
+        });
 
         var giveWalletCommand = literal("givewallet").then(
                 argument("player", EntityArgumentType.player())
@@ -112,7 +134,7 @@ public class KromerCommand {
                                         context,
                                         "player"
                                     );
-                                int amount = IntegerArgumentType.getInteger(
+                                var amount = KromerArgumentType.getBigDecimal(
                                     context,
                                     "amount"
                                 );
@@ -246,6 +268,7 @@ public class KromerCommand {
                     .requires(scs -> scs.hasPermissionLevel(4)))
             .then(executeWelfare
                     .requires(scs -> scs.hasPermissionLevel(4)));
+
 
         dispatcher.register(rootCommand);
     }

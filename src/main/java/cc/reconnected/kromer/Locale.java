@@ -18,8 +18,11 @@ public class Locale {
             """
             <green>Your kromer information:
             Address: <dark_green><click:copy_to_clipboard:%s>%s</click></dark_green> <gray>(click to copy!)</gray>
-            Private key: <dark_green><click:copy_to_clipboard:%s>%s</click></dark_green> <gray>(click to copy!)</gray> </green>"""
-        ),
+            Private key: <dark_green><click:run_command:'/kromer privatekey'>[click to reveal!]</click></dark_green></green>"""),
+        KROMER_PRIVATEKEY("""
+            <green>Your kromer private information:
+            Address: <dark_green><click:copy_to_clipboard:%s>%s</click></dark_green> <gray>(click to copy!)</gray>
+            Private key: <dark_green><click:copy_to_clipboard:%s>%s</click></dark_green> <gray>(click to copy!)</gray></green>"""),
         ADDED_KRO(
             "<green>Added <dark_green>%.2fKRO</dark_green> to %s.</green>"
         ),
