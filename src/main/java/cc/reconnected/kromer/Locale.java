@@ -47,7 +47,18 @@ public class Locale {
         ),
         INCOMING_NOT_SEEN(
             "<green><dark_green>%s</dark_green> deposited <dark_green>%.2fKRO</dark_green> into your account. Executed at %s.</green>"
-        );
+        ),
+        OPTED_IN_WELFARE("<green>Opted into welfare."),
+        ALREADY_OPTED_IN("<red>You're already opted in to welfare."),
+        ALREADY_OPTED_OUT("<red>You have already opted out of welfare."),
+        OPTOUT_WARNING("""
+            <red>Opting out of welfare means all of your kromer will be removed, including all
+            starting kromer, future welfare payments, and kromer you have been sent.
+            Are you sure you want to opt out of welfare?</red>"""),
+        OPTOUT_INFO("""
+            <yellow>INFO: You are able to opt in back to welfare, but you will not regain your starting kromer.</yellow>"""),
+        OPTED_OUT_WELFARE("<red>You have opted out of welfare."),
+        CONFIRM_OPTOUT_BUTTON("<bold><red><click:run_command:/kromer optOut confirm>[CONFIRM]</click></red></bold>");
 
         private final String template;
 

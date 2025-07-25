@@ -6,29 +6,12 @@ import static net.minecraft.server.command.CommandManager.literal;
 import cc.reconnected.kromer.Kromer;
 import cc.reconnected.kromer.Locale;
 import cc.reconnected.kromer.database.Wallet;
-import cc.reconnected.kromer.models.domain.KromerArgumentType;
-import cc.reconnected.kromer.models.errors.GenericError;
-import com.google.gson.Gson;
-import com.google.gson.JsonObject;
-import com.google.gson.JsonSyntaxException;
+
 import com.mojang.authlib.GameProfile;
 import com.mojang.brigadier.CommandDispatcher;
 import com.mojang.brigadier.arguments.FloatArgumentType;
 import com.mojang.brigadier.arguments.StringArgumentType;
 import com.mojang.brigadier.context.CommandContext;
-import net.minecraft.command.CommandRegistryAccess;
-import net.minecraft.server.command.CommandManager;
-import net.minecraft.server.command.ServerCommandSource;
-import net.minecraft.server.network.ServerPlayerEntity;
-import net.minecraft.text.Text;
-import net.minecraft.util.Formatting;
-import net.minecraft.util.UserCache;
-
-import java.math.BigDecimal;
-import java.net.URI;
-import java.net.URISyntaxException;
-import java.net.http.HttpRequest;
-import java.net.http.HttpResponse;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
@@ -40,6 +23,8 @@ import net.minecraft.server.command.ServerCommandSource;
 import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.text.Text;
 import net.minecraft.util.Formatting;
+import ovh.sad.jkromer.http.Result;
+import ovh.sad.jkromer.http.transactions.MakeTransaction;
 
 public class PayCommand {
 
@@ -281,88 +266,25 @@ public class PayCommand {
                 );
             return 0;
         }
-
-        JsonObject obj = new JsonObject();
-        obj.addProperty("privatekey", wallet.privatekey);
-        obj.addProperty("to", payment.to);
-        obj.addProperty("amount", payment.amount.floatValue());
-        obj.addProperty("metadata", payment.metadata);
-
-        HttpRequest request;
-        try {
-            request = HttpRequest.newBuilder()
-                .uri(
-                    new URI(
-                        Kromer.config.KromerURL() + "api/krist/transactions"
-                    )
-                )
-                .headers("Content-Type", "application/json")
-                .POST(HttpRequest.BodyPublishers.ofString(obj.toString()))
-                .build();
-        } catch (URISyntaxException e) {
-            throw new RuntimeException(e);
-        }
-
-        Kromer.httpclient
-            .sendAsync(request, HttpResponse.BodyHandlers.ofString())
-            .whenComplete((response, throwable) -> {
-                if (throwable != null) {
-                    context
-                        .getSource()
-                        .sendFeedback(
-                            () -> Locale.use(Locale.Messages.ERROR, throwable),
-                            false
-                        );
-                    return;
-                }
-
-                if (response.statusCode() != 200) {
-                    GenericError error;
-                    try {
-                        error = Kromer.gson.fromJson(
-                            response.body(),
-                            GenericError.class
-                        );
-                    } catch (JsonSyntaxException jse) {
-                        context
-                            .getSource()
-                            .sendFeedback(
-                                () ->
-                                    Locale.use(
-                                        Locale.Messages.ERROR,
-                                        String.valueOf(response.statusCode())
-                                    ),
-                                false
-                            );
-                        return;
+        MakeTransaction.execute(wallet.privatekey, payment.to, payment.amount, payment.metadata)
+                .whenComplete((b, ex) -> {
+                    switch (b) {
+                        case Result.Ok<MakeTransaction.MakeTransactionResponse> ok -> context
+                                .getSource()
+                                .sendFeedback(
+                                        () ->
+                                                Locale.use(
+                                                        Locale.Messages.PAYMENT_CONFIRMED,
+                                                        payment.amount,
+                                                        payment.to
+                                                ),
+                                        false);
+                        case Result.Err<MakeTransaction.MakeTransactionResponse> err -> context.getSource()
+                                .sendFeedback(() ->
+                                                Locale.use(Locale.Messages.ERROR, "Error: " + err.error() + " param: " + err.error().parameter())
+                                        , false);
                     }
-                    context
-                        .getSource()
-                        .sendFeedback(
-                            () ->
-                                Locale.use(
-                                    Locale.Messages.ERROR,
-                                    error.error + " (" + error.parameter + ")"
-                                ),
-                            false
-                        );
-                    return;
-                }
-
-                context
-                    .getSource()
-                    .sendFeedback(
-                        () ->
-                            Locale.use(
-                                Locale.Messages.PAYMENT_CONFIRMED,
-                                payment.amount,
-                                payment.to
-                            ),
-                        false
-                    );
-            })
-            .join();
-
+                }).join();
         return 1;
     }
 }

@@ -3,24 +3,13 @@ package cc.reconnected.kromer.commands;
 import static net.minecraft.server.command.CommandManager.argument;
 import static net.minecraft.server.command.CommandManager.literal;
 
-import cc.reconnected.kromer.API;
 import cc.reconnected.kromer.Kromer;
 import cc.reconnected.kromer.Locale;
 import cc.reconnected.kromer.database.Wallet;
 import cc.reconnected.kromer.database.WelfareData;
-import cc.reconnected.kromer.models.domain.KromerArgumentType;
-import cc.reconnected.kromer.models.errors.GenericError;
-import cc.reconnected.kromer.models.responses.GetAddressResponse;
-import cc.reconnected.kromer.models.responses.MotdResponse;
-import com.google.gson.Gson;
-import com.google.gson.JsonSyntaxException;
 import com.mojang.brigadier.Command;
 import com.mojang.brigadier.CommandDispatcher;
 import com.mojang.brigadier.arguments.IntegerArgumentType;
-import java.net.URI;
-import java.net.URISyntaxException;
-import java.net.http.HttpRequest;
-import java.net.http.HttpResponse;
 import java.util.Objects;
 import me.alexdevs.solstice.Solstice;
 import net.fabricmc.loader.api.FabricLoader;
@@ -32,6 +21,11 @@ import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.text.ClickEvent;
 import net.minecraft.text.Text;
 import net.minecraft.util.Formatting;
+import ovh.sad.jkromer.http.Result;
+import ovh.sad.jkromer.http.addresses.GetAddress;
+import ovh.sad.jkromer.http.internal.GiveMoney;
+import ovh.sad.jkromer.http.misc.GetMotd;
+import ovh.sad.jkromer.http.transactions.MakeTransaction;
 
 import java.math.BigDecimal;
 import java.net.URI;
@@ -58,39 +52,16 @@ public class KromerCommand {
                     .getVersion()
                     .getFriendlyString(); // WHY
 
-                HttpRequest request;
-                try {
-                    request = HttpRequest.newBuilder()
-                        .uri(
-                            new URI(
-                                Kromer.config.KromerURL() + "api/krist/motd"
-                            )
-                        )
-                        .GET()
-                        .build();
-                } catch (URISyntaxException e) {
-                    throw new RuntimeException(e);
-                }
-                Kromer.httpclient
-                    .sendAsync(request, HttpResponse.BodyHandlers.ofString())
-                    .whenComplete((response, throwable) -> {
-                        MotdResponse motdResponse = Kromer.gson.fromJson(
-                            response.body(),
-                            MotdResponse.class
-                        );
-
-                        context
-                            .getSource()
-                            .sendFeedback(
-                                () ->
-                                    Locale.use(
-                                        Locale.Messages.VERSION,
-                                        modVersion,
-                                        motdResponse.motdPackage.version
-                                    ),
-                                false
-                            );
-                    });
+                GetMotd.execute().whenComplete((b, ex) -> {
+                    switch (b) {
+                        case Result.Ok<GetMotd.GetMotdBody> ok -> context.getSource().sendFeedback(() -> Locale.use(Locale.Messages.VERSION, modVersion,
+                                ok.value().motdPackage.version), false);
+                        case Result.Err<GetMotd.GetMotdBody> err -> context.getSource()
+                                .sendFeedback(() ->
+                                                Locale.use(Locale.Messages.ERROR, "Error: " + err.error() + " param: " + err.error().parameter())
+                                        , false);
+                    }
+                }).join();
                 return 1;
             });
 
@@ -141,7 +112,6 @@ public class KromerCommand {
 
         var giveWalletCommand = literal("givewallet").then(
                 argument("player", EntityArgumentType.player())
-                    .requires(source -> source.hasPermissionLevel(4))
                     .executes(context -> {
                         ServerPlayerEntity player =
                             EntityArgumentType.getPlayer(context, "player");
@@ -157,8 +127,7 @@ public class KromerCommand {
 
         var setMoneyCommand = literal("addMoney").then(
                 argument("player", EntityArgumentType.player()).then(
-                        argument("amount", KromerArgumentType.kromerArg(true, false))
-                            .requires(source -> source.hasPermissionLevel(4))
+                        argument("amount", IntegerArgumentType.integer())
                             .executes(context -> {
                                 ServerPlayerEntity player =
                                     EntityArgumentType.getPlayer(
@@ -169,28 +138,29 @@ public class KromerCommand {
                                     context,
                                     "amount"
                                 );
+                                GiveMoney
+                                        .execute(Kromer.config.KromerKey(), amount, Kromer.database.getWallet(player.getUuid()).address)
+                                        .whenComplete((b, ex) -> {
+                                            switch (b) {
+                                                case Result.Ok<GiveMoney.GiveMoneyResponse> ok -> context.getSource().sendFeedback(() ->
+                                                        Locale.use(
+                                                                Locale.Messages.ADDED_KRO,
+                                                                amount,
+                                                                player.getEntityName()
+                                                        ), false);
+                                                case Result.Err<GiveMoney.GiveMoneyResponse> err -> context.getSource()
+                                                        .sendFeedback(() ->
+                                                                        Locale.use(Locale.Messages.ERROR, "Error: " + err.error() + " param: " + err.error().parameter())
+                                                                , false);
+                                            }
+                                        })
+                                        .join();
 
-                                API.giveMoney(
-                                    Kromer.database.getWallet(player.getUuid()),
-                                    amount
-                                );
-                                context
-                                    .getSource()
-                                    .sendFeedback(
-                                        () ->
-                                            Locale.use(
-                                                Locale.Messages.ADDED_KRO,
-                                                amount,
-                                                player.getEntityName()
-                                            ),
-                                        false
-                                    );
                                 return Command.SINGLE_SUCCESS;
                             })
                     )
             );
         var executeWelfare = literal("welfare")
-            .requires(source -> source.hasPermissionLevel(4))
             .executes(context -> {
                 Kromer.executeWelfare();
                 return Command.SINGLE_SUCCESS;
@@ -224,98 +194,81 @@ public class KromerCommand {
                 welfareData.welfareMuted = !welfareData.welfareMuted;
                 return Command.SINGLE_SUCCESS;
             });
-
-        var optOutOfWelfare = literal("optOut")
-            .executes(context -> {
-                WelfareData welfareData = Solstice.playerData
-                    .get(context.getSource().getPlayer().getUuid())
-                    .getData(WelfareData.class);
-
-                if (welfareData.optedOut) {
-                    context
-                        .getSource()
-                        .sendFeedback(
-                            () ->
-                                Text.literal(
-                                    "You have already opted out of welfare."
-                                ).formatted(Formatting.RED),
-                            false
-                        );
-                    return 0;
-                }
-
-                context
-                    .getSource()
-                    .sendFeedback(
-                        () ->
-                            Text.literal(
-                                "Opting out of welfare means your starting kromer will be removed, including all"
-                            ).formatted(Formatting.RED),
-                        false
-                    );
-                context
-                    .getSource()
-                    .sendFeedback(
-                        () ->
-                            Text.literal(
-                                "starting kromer, and future welfare payments. Are you sure you want to opt out of welfare?"
-                            ).formatted(Formatting.RED),
-                        false
-                    );
-                context.getSource().sendFeedback(Text::empty, false);
-                context
-                    .getSource()
-                    .sendFeedback(
-                        () ->
-                            Text.literal(
-                                "INFO: You are able to opt in back to welfare, but you will not regain your starting kromer."
-                            ).formatted(Formatting.YELLOW),
-                        false
-                    );
-                context.getSource().sendFeedback(Text::empty, false);
-                context
-                    .getSource()
-                    .sendFeedback(
-                        () ->
-                            Text.literal("[CONFIRM]")
-                                .styled(s ->
-                                    s.withClickEvent(
-                                        new ClickEvent(
-                                            ClickEvent.Action.RUN_COMMAND,
-                                            "/kromer optOut confirm"
-                                        )
-                                    )
-                                )
-                                .formatted(Formatting.RED)
-                                .formatted(Formatting.BOLD),
-                        false
-                    );
-
-                return 1;
-            })
-            .then(
-                literal("confirm").executes(context -> {
-                        WelfareData welfareData = Solstice.playerData
+        var optInOfWelfare = literal("optIn")
+                .executes(context -> {
+                    WelfareData welfareData = Solstice.playerData
                             .get(context.getSource().getPlayer().getUuid())
                             .getData(WelfareData.class);
 
-                        welfareData.optedOut = true;
+                    if (welfareData.optedOut) {
+                        welfareData.optedOut = false;
+                        context.getSource().sendFeedback(() -> Locale.use(Locale.Messages.OPTED_IN_WELFARE), false);
+                    } else {
+                        context.getSource().sendFeedback(() -> Locale.use(Locale.Messages.ALREADY_OPTED_IN), false);
+                    }
+                    return 1;
+                });
 
-                        Wallet wallet = Kromer.database.getWallet(
-                            context.getSource().getPlayer().getUuid()
-                        );
-                        if (wallet == null) return 0;
-                        API.getBalance(wallet.address, context)
-                            .whenComplete((response, throwable) -> {
-                                if (throwable != null) return; // getbalance handles via context
-                                // response.address.balance
-                            })
-                            .join();
-                        return 1;
-                    })
-            );
+        var optOutOfWelfare = literal("optOut")
+                .executes(context -> {
+                    WelfareData welfareData = Solstice.playerData
+                            .get(context.getSource().getPlayer().getUuid())
+                            .getData(WelfareData.class);
 
-        var rootCommand = literal("kromer").then(versionCommand).then(infoCommand).then(privatekeyCommand).then(muteWelfare).requires(serverCommandSource -> serverCommandSource.hasPermissionLevel(4)).then(giveWalletCommand).then(setMoneyCommand).then(executeWelfare);
+                    if (welfareData.optedOut) {
+                        context.getSource().sendFeedback(() -> Locale.use(Locale.Messages.ALREADY_OPTED_OUT), false);
+                        return 0;
+                    }
+
+                    context.getSource().sendFeedback(() -> Locale.use(Locale.Messages.OPTOUT_WARNING), false);
+                    context.getSource().sendFeedback(Text::empty, false);
+                    context.getSource().sendFeedback(() -> Locale.use(Locale.Messages.OPTOUT_INFO), false);
+                    context.getSource().sendFeedback(Text::empty, false);
+                    context.getSource().sendFeedback(() -> Locale.use(Locale.Messages.CONFIRM_OPTOUT_BUTTON), false);
+
+                    return 1;
+                })
+                .then(
+                        literal("confirm").executes(context -> {
+                            WelfareData welfareData = Solstice.playerData
+                                    .get(context.getSource().getPlayer().getUuid())
+                                    .getData(WelfareData.class);
+
+                            welfareData.optedOut = true;
+
+                            Wallet wallet = Kromer.database.getWallet(context.getSource().getPlayer().getUuid());
+                            if (wallet == null) return 0;
+
+                            GetAddress.execute(wallet.address).whenComplete((b, ex) -> {
+                                if (b instanceof Result.Ok<GetAddress.GetAddressBody>(GetAddress.GetAddressBody address)) {
+                                    MakeTransaction.execute(
+                                            wallet.privatekey,
+                                            "serverwelf",
+                                            address.address.balance,
+                                            "[rcc-kromer] relinquishing all kromer"
+                                    ).whenComplete((z, ex2) -> {
+                                        context.getSource().sendFeedback(() -> Locale.use(Locale.Messages.OPTED_OUT_WELFARE), false);
+                                    }).join();
+                                }
+                            }).join();
+
+                            return 1;
+                        })
+                );
+
+        var rootCommand = literal("kromer")
+            .then(versionCommand)
+            .then(infoCommand)
+            .then(muteWelfare)
+            .then(optInOfWelfare)
+            .then(optOutOfWelfare)
+            .then(giveWalletCommand
+                .requires(scs -> scs.hasPermissionLevel(4)))
+            .then(setMoneyCommand
+                    .requires(scs -> scs.hasPermissionLevel(4)))
+            .then(executeWelfare
+                    .requires(scs -> scs.hasPermissionLevel(4)));
+
 
         dispatcher.register(rootCommand);
     }

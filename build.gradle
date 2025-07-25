@@ -1,6 +1,8 @@
 plugins {
     id 'fabric-loom' version '1.7-SNAPSHOT'
     id 'maven-publish'
+
+    id "org.flywaydb.flyway" version "10.14.0"
 }
 
 version = project.mod_version
@@ -28,7 +30,9 @@ repositories {
         name = "alexdevs"
         url ="https://maven.alexdevs.me/releases"
     }
-
+    maven {
+        url = "https://repo.sad.ovh/releases"
+    }
 
     // SOLSTICE DEPS
     maven { url 'https://maven.nucleoid.xyz' }
@@ -48,7 +52,7 @@ dependencies {
     minecraft "com.mojang:minecraft:${project.minecraft_version}"
     mappings "net.fabricmc:yarn:${project.yarn_mappings}:v2"
     modImplementation "net.fabricmc:fabric-loader:${project.loader_version}"
-    implementation "org.java-websocket:Java-WebSocket:${project.jws_version}"
+    include implementation('org.flywaydb:flyway-core:10.14.0')
 
     modImplementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_version}"
     modImplementation "io.wispforest:owo-lib:${project.owo_version}"
@@ -62,9 +66,36 @@ dependencies {
     modImplementation "me.alexdevs:solstice:${project.solstice_version}"
     implementation "org.xerial:sqlite-jdbc:${project.sqlite_jdbc}"
 
+    // START jKROMER
+    implementation include("ovh.sad:jkromer:0.5")
+
+    implementation "org.java-websocket:Java-WebSocket:${project.jws_version}"
+    // END jKROMER
+
     annotationProcessor "io.wispforest:owo-lib:${project.owo_version}"
 
     include "io.wispforest:owo-sentinel:${project.owo_version}"
+}
+
+sourceSets {
+    main {
+        java {
+            srcDirs += 'src/generated/java'
+        }
+    }
+}
+flywayMigrate {
+    doFirst {
+        println "Flyway working dir: ${project.projectDir.absolutePath}"
+    }
+}
+
+flyway {
+    def dbFile = file("rcc-kromer2.db")  // resolves to projectDir/rcc-kromer2.db
+    url = "jdbc:sqlite:${dbFile.absolutePath}"
+    locations = ["filesystem:src/main/resources/db/migration"]
+    driver = "org.sqlite.JDBC"
+    cleanDisabled = false
 }
 
 processResources {
@@ -80,7 +111,7 @@ processResources {
     }
 }
 
-def targetJavaVersion = 17
+def targetJavaVersion = 21
 tasks.withType(JavaCompile).configureEach {
     it.options.encoding = "UTF-8"
     if (targetJavaVersion >= 10 || JavaVersion.current().isJava10Compatible()) {
