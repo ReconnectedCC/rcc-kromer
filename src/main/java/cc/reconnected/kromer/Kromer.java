@@ -192,12 +192,12 @@ public class Kromer implements DedicatedServerModInitializer {
                 if (
                     Solstice.modules.getModule(AfkModule.class).isPlayerAfk(p)
                 ) return;
+                WelfareData welfareData = Solstice.playerData
+                        .get(p.getUuid())
+                        .getData(WelfareData.class);
                 GiveMoney.execute(config.KromerKey(), finalWelfare, wallet.address).join();
                 if (
-                    !Solstice.playerData
-                        .get(p.getUuid())
-                        .getData(WelfareData.class)
-                        .welfareMuted
+                    !(welfareData.welfareMuted || welfareData.optedOut)
                 ) {
                     p.sendMessage(
                         Locale.use(Locale.Messages.WELFARE_GIVEN, finalWelfare)
