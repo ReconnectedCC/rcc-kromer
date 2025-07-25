@@ -12,4 +12,4 @@ This version of rcc-kromer uses JKromer, which can be found [here](https://githu
 The database to store all of this is twofold, for user toggles I use Solstice's PlayerData, for private keys and addresses I use Flyway + SQLite.
 
 ## License
-As of currently, All Rights Resered.
+MIT.
