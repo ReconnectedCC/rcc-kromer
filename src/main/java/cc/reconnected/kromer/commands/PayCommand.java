@@ -96,6 +96,9 @@ public class PayCommand {
         if (recipientInput.matches("^k[a-z0-9]{9}$")) {
             kristAddress = recipientInput;
             recipientName = recipientInput;
+        }  else if (recipientInput.matches("^(?:([a-z0-9-_]{1,32})@)?([a-z0-9]{1,64})\\.kro$")) {
+            kristAddress = recipientInput;
+            recipientName = recipientInput;
         } else {
             GameProfile otherProfile;
             try {

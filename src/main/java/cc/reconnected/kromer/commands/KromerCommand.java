@@ -88,7 +88,6 @@ public class KromerCommand {
 
         var giveWalletCommand = literal("givewallet").then(
                 argument("player", EntityArgumentType.player())
-                    .requires(source -> source.hasPermissionLevel(4))
                     .executes(context -> {
                         ServerPlayerEntity player =
                             EntityArgumentType.getPlayer(context, "player");
@@ -105,7 +104,6 @@ public class KromerCommand {
         var setMoneyCommand = literal("addMoney").then(
                 argument("player", EntityArgumentType.player()).then(
                         argument("amount", IntegerArgumentType.integer())
-                            .requires(source -> source.hasPermissionLevel(4))
                             .executes(context -> {
                                 ServerPlayerEntity player =
                                     EntityArgumentType.getPlayer(
@@ -139,7 +137,6 @@ public class KromerCommand {
                     )
             );
         var executeWelfare = literal("welfare")
-            .requires(source -> source.hasPermissionLevel(4))
             .executes(context -> {
                 Kromer.executeWelfare();
                 return Command.SINGLE_SUCCESS;
@@ -261,11 +258,14 @@ public class KromerCommand {
 
         var rootCommand = literal("kromer")
             .then(versionCommand)
-            .then(giveWalletCommand)
-            .then(setMoneyCommand)
-            .then(executeWelfare)
             .then(infoCommand)
-            .then(muteWelfare);
+            .then(muteWelfare)
+            .then(giveWalletCommand
+                .requires(scs -> scs.hasPermissionLevel(4)))
+            .then(setMoneyCommand
+                    .requires(scs -> scs.hasPermissionLevel(4)))
+            .then(executeWelfare
+                    .requires(scs -> scs.hasPermissionLevel(4)));
 
         dispatcher.register(rootCommand);
     }
