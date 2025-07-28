@@ -187,7 +187,8 @@ public class Kromer implements DedicatedServerModInitializer {
 
         float welfare = config.HourlyWelfare();
         if (
-            !playersWithSupporter.isEmpty()
+            !playersWithSupporter.isEmpty() &&
+            !playersWithoutSupporter.isEmpty()
         ) {
             welfare =
                 config.HourlyWelfare() *
