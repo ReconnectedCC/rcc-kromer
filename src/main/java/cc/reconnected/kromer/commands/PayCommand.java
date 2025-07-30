@@ -282,7 +282,7 @@ public class PayCommand {
                                         false);
                         case Result.Err<MakeTransaction.MakeTransactionResponse> err -> context.getSource()
                                 .sendFeedback(() ->
-                                                Locale.use(Locale.Messages.ERROR, "Error: " + err.error() + " param: " + err.error().parameter())
+                                                Locale.use(Locale.Messages.ERROR, err.error())
                                         , false);
                     }
                 }).join();

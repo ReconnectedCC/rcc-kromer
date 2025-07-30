@@ -25,7 +25,7 @@ public class Locale {
         WELFARE_NOT_MUTED("<green>Welfare notifications are no longer muted."),
         WELFARE_MUTED("<red>Welfare notifications are now muted."),
         NO_PENDING("<red>No pending payment to confirm."),
-        ERROR("<red>Error while contacting kromer: %s"),
+        ERROR("<red>Error: %s"),
         PAYMENT_CONFIRMED(
             "<green>Payment of <dark_green>%.2fKRO</dark_green> to <dark_green>%s</dark_green> confirmed.</green>"
         ),

@@ -127,9 +127,8 @@ public class TransactionsCommand {
                         }
 
                         case Result.Err<ListTransactionsBody> err -> {
-                            Errors.ErrorResponse e = err.error();
                             source.sendFeedback(
-                                    () -> Locale.use(Locale.Messages.ERROR, e.error() + " (" + e.parameter() + ")"),
+                                    () -> Locale.use(Locale.Messages.ERROR, err.error()),
                                     false
                             );
                         }

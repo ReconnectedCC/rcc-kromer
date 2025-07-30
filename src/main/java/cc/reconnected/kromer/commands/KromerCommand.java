@@ -58,7 +58,7 @@ public class KromerCommand {
                                 ok.value().motdPackage.version), false);
                         case Result.Err<GetMotd.GetMotdBody> err -> context.getSource()
                                 .sendFeedback(() ->
-                                                Locale.use(Locale.Messages.ERROR, "Error: " + err.error() + " param: " + err.error().parameter())
+                                                Locale.use(Locale.Messages.ERROR, err.error())
                                         , false);
                     }
                 }).join();
@@ -135,7 +135,7 @@ public class KromerCommand {
                                                         ), false);
                                                 case Result.Err<GiveMoney.GiveMoneyResponse> err -> context.getSource()
                                                         .sendFeedback(() ->
-                                                                        Locale.use(Locale.Messages.ERROR, "Error: " + err.error() + " param: " + err.error().parameter())
+                                                                        Locale.use(Locale.Messages.ERROR, err.error())
                                                                 , false);
                                             }
                                         })

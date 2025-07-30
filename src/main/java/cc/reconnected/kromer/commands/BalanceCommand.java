@@ -60,7 +60,7 @@ public class BalanceCommand {
                 case Result.Ok<GetAddress.GetAddressBody> ok -> context.getSource().sendFeedback(() -> Locale.use(Locale.Messages.BALANCE, ok.value().address.balance), false);
                 case Result.Err<GetAddress.GetAddressBody> err -> context.getSource()
                         .sendFeedback(() ->
-                                Locale.use(Locale.Messages.ERROR, "Error: " + String.format("%.10s", err.error()) + " param: " + err.error().parameter())
+                                Locale.use(Locale.Messages.ERROR, err.error())
                         , false);
             }
         }).join();
