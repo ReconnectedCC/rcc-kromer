@@ -67,7 +67,7 @@ dependencies {
     implementation "org.xerial:sqlite-jdbc:${project.sqlite_jdbc}"
 
     // START jKROMER
-    implementation include("ovh.sad:jkromer:0.5")
+    implementation include("ovh.sad:jkromer:0.9")
 
     implementation "org.java-websocket:Java-WebSocket:${project.jws_version}"
     // END jKROMER
