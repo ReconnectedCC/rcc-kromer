@@ -328,8 +328,7 @@ public class Kromer implements DedicatedServerModInitializer {
             );
         }
 
-        var createWalletResult = CreateWallet.execute(config.KromerKey(), name, UUID.randomUUID().toString()).join();
-
+        var createWalletResult = CreateWallet.execute(config.KromerKey(), name, uuid)).join();
 
         if (createWalletResult instanceof Result.Ok(CreateWallet.CreateWalletResponse createWallet)) {
             Transaction[] array = {};
