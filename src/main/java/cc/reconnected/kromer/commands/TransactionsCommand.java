@@ -5,6 +5,9 @@ import static net.minecraft.server.command.CommandManager.literal;
 
 import cc.reconnected.kromer.Kromer;
 import cc.reconnected.kromer.Locale;
+import cc.reconnected.kromer.Locale.Messages;
+
+import cc.reconnected.kromer.database.Wallet;
 import com.mojang.brigadier.CommandDispatcher;
 import com.mojang.brigadier.arguments.IntegerArgumentType;
 import com.mojang.brigadier.context.CommandContext;
@@ -14,12 +17,12 @@ import net.minecraft.command.CommandRegistryAccess;
 import net.minecraft.server.command.CommandManager;
 import net.minecraft.server.command.ServerCommandSource;
 import net.minecraft.text.Text;
-import ovh.sad.jkromer.Errors;
-import ovh.sad.jkromer.http.transactions.ListTransactions;
-import ovh.sad.jkromer.http.transactions.ListTransactions.ListTransactionsBody;
+import ovh.sad.jkromer.http.addresses.GetAddressTransactions;
 import ovh.sad.jkromer.http.Result;
 
+import java.text.SimpleDateFormat;
 import java.util.Objects;
+import java.util.TimeZone;
 
 
 public class TransactionsCommand {
@@ -40,6 +43,27 @@ public class TransactionsCommand {
     }
     public static int checkTransactions(CommandContext<ServerCommandSource> context)
             throws CommandSyntaxException {
+        Wallet wallet = Kromer.database.getWallet(context.getSource().getPlayer().getUuid());
+
+        if (!Kromer.kromerStatus) {
+            context
+                    .getSource()
+                    .sendFeedback(
+                            () -> Locale.use(Locale.Messages.KROMER_UNAVAILABLE),
+                            false
+                    );
+            return 0;
+        }
+
+        if (wallet == null) {
+            context
+                    .getSource()
+                    .sendFeedback(
+                            () -> Locale.use(Locale.Messages.NO_WALLET),
+                            false
+                    );
+            return 0;
+        }
 
         var source = context.getSource();
         var player = source.getPlayer();
@@ -60,7 +84,7 @@ public class TransactionsCommand {
 
         int offset = (page - 1) * 10;
         int finalPage = page;
-        ListTransactions.execute(10, offset)
+        GetAddressTransactions.execute(wallet.address, false, 10, offset)
                 .whenComplete((result, throwable) -> {
                     if (throwable != null) {
                         source.sendFeedback(
@@ -71,43 +95,36 @@ public class TransactionsCommand {
                     }
 
                     switch (result) {
-                        case Result.Ok<ListTransactionsBody> ok -> {
+                        case Result.Ok<GetAddressTransactions.GetAddressTransactionsBody> ok -> {
                             var responseObj = ok.value();
+
                             source.sendFeedback(
-                                    () -> Text.literal(
-                                            "<green>Transactions for " +
-                                                    player.getName().getString() +
-                                                    " on page " +
-                                                    finalPage +
-                                                    ":<reset>"
-                                    ),
+                                    () -> Locale.use(Locale.Messages.TRANSACTIONS_INFO, player.getEntityName(), finalPage),
                                     false
                             );
 
                             if (responseObj.transactions == null || responseObj.transactions.isEmpty()) {
                                 source.sendFeedback(
-                                        () -> Text.literal("<red>No transactions found<reset>"),
+                                        () -> Locale.use(Locale.Messages.TRANSACTIONS_EMPTY),
                                         false
                                 );
                                 return;
                             }
 
-                            for (var transaction : responseObj.transactions) {
-                                String color = Objects.equals(transaction.type, "transfer")
-                                        ? "<aqua>"
-                                        : "<gold>";
-                                String transactionText = String.format(
-                                        "%s%s: #%s, %s->%s: %.2f KRO, Metadata: '%s'<reset>",
-                                        color,
-                                        transaction.time,
-                                        transaction.id,
-                                        transaction.from,
-                                        transaction.to,
-                                        transaction.value,
-                                        transaction.metadata
-                                );
+                            final SimpleDateFormat f = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
+                            f.setTimeZone(TimeZone.getTimeZone("UTC"));
 
-                                source.sendFeedback(() -> TextParserUtils.formatText(transactionText), false);
+                            for (var transaction : responseObj.transactions) {
+                                source.sendFeedback(() -> Locale.use(Messages.TRANSACTION,
+                                    Objects.equals(transaction.type, "transfer")
+                                            ? "<aqua>"
+                                            : "<gold>",
+                                f.format(transaction.time), // Always report UTC time
+                                transaction.id,
+                                transaction.from,
+                                transaction.to,
+                                transaction.value,
+                                transaction.metadata), false);
                             }
 
                             boolean hasNextPage = responseObj.transactions.size() >= 10;
@@ -126,7 +143,7 @@ public class TransactionsCommand {
                             source.sendFeedback(() -> TextParserUtils.formatText(nav.toString()), false);
                         }
 
-                        case Result.Err<ListTransactionsBody> err -> {
+                        case Result.Err<GetAddressTransactions.GetAddressTransactionsBody> err -> {
                             source.sendFeedback(
                                     () -> Locale.use(Locale.Messages.ERROR, err.error()),
                                     false

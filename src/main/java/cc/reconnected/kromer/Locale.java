@@ -18,7 +18,9 @@ public class Locale {
             """
             <green>Your kromer information:
             Address: <dark_green><click:copy_to_clipboard:%s>%s</click></dark_green> <gray>(click to copy!)</gray>
-            Private key: <dark_green><click:run_command:'/kromer privatekey'>[click to reveal!]</click></dark_green></green>"""),
+            Private key: <dark_green><click:copy_to_clipboard:%s>%s</click></dark_green> <gray>(click to copy!)</gray>
+
+            <red> Your private key is PRIVATE information. It is used to access all of your kromer. Do not share it with anyone.</red>"""),
         ADDED_KRO(
             "<green>Added <dark_green>%.2fKRO</dark_green> to %s.</green>"
         ),
@@ -54,7 +56,10 @@ public class Locale {
         OPTOUT_INFO("""
             <yellow>INFO: You are able to opt in back to welfare, but you will not regain your starting kromer.</yellow>"""),
         OPTED_OUT_WELFARE("<red>You have opted out of welfare."),
-        CONFIRM_OPTOUT_BUTTON("<bold><red><click:run_command:/kromer optOut confirm>[CONFIRM]</click></red></bold>");
+        CONFIRM_OPTOUT_BUTTON("<bold><red><click:run_command:'/kromer optOut confirm'>[CONFIRM]</click></red></bold>"),
+        TRANSACTIONS_INFO("<green>Transactions for %s on page %s"),
+        TRANSACTIONS_EMPTY("<red>No transactions found<reset>"),
+        TRANSACTION("%s%s: #%s, %s->%s: %.2f KRO, Metadata: '%s'<reset>");
 
         private final String template;
 
