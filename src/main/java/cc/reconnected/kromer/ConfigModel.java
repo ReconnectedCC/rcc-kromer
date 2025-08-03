@@ -11,4 +11,5 @@ public class ConfigModel {
     public float SupporterMultiplier = 1.5f;
     public float HourlyWelfare = 1.5f;
     public String SupporterGroup = "group.supportertier1";
+    public String BotPermission = "group.bot";
 }

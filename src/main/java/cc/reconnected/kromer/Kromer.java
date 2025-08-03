@@ -175,14 +175,14 @@ public class Kromer implements DedicatedServerModInitializer {
             .getPlayerManager()
             .getPlayerList()
             .stream()
-            .filter(z -> Permissions.check(z, config.SupporterGroup()))
+            .filter(z -> Permissions.check(z, config.SupporterGroup()) && !Permissions.check(z, config.BotPermission()))
             .toList();
 
         List<ServerPlayerEntity> playersWithoutSupporter = client.server
             .getPlayerManager()
             .getPlayerList()
             .stream()
-            .filter(z -> !Permissions.check(z, config.SupporterGroup()))
+            .filter(z -> !Permissions.check(z, config.SupporterGroup()) && !Permissions.check(z, config.BotPermission()))
             .toList();
 
         float welfare = config.HourlyWelfare();
@@ -201,6 +201,10 @@ public class Kromer implements DedicatedServerModInitializer {
             .getPlayerManager()
             .getPlayerList()
             .forEach(p -> {
+                if(config.BotPermission() != null) {
+                    if(Permissions.check(p, config.BotPermission())) return; // If bot then bye
+                }
+
                 Wallet wallet = Kromer.database.getWallet(p.getUuid());
                 if (wallet == null) return;
 
