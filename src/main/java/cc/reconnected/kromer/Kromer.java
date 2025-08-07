@@ -40,6 +40,7 @@ import net.minecraft.util.Pair;
 import org.flywaydb.core.Flyway;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import ovh.sad.commonmeta.CommonMetaParser;
 import ovh.sad.jkromer.Errors;
 import ovh.sad.jkromer.http.Result;
 import ovh.sad.jkromer.http.internal.CreateWallet;
@@ -237,13 +238,37 @@ public class Kromer implements DedicatedServerModInitializer {
         ServerPlayerEntity player,
         Transaction transaction
     ) {
-        player.sendMessage(
-            Locale.use(
-                Locale.Messages.NOTIFY_TRANSFER,
-                transaction.value,
-                getNameFromWallet(transaction.from)
-            )
-        );
+        var result = CommonMetaParser.parseWithResult(transaction.metadata);
+
+        if(result.success) {
+            if(result.pairs.containsKey("message")) {
+                player.sendMessage(
+                        Locale.useSafe( // use useSafe, removes all <click's and whatnot.
+                                Locale.Messages.NOTIFY_TRANSFER_MESSAGE,
+                                transaction.value,
+                                getNameFromWallet(transaction.from),
+                                result.pairs.get("message")
+                        )
+                );
+            } else { // Don't duplicate code here. However, I don't want to make a extra function, so be it.
+                player.sendMessage(
+                        Locale.use(
+                                Locale.Messages.NOTIFY_TRANSFER,
+                                transaction.value,
+                                getNameFromWallet(transaction.from)
+                        )
+                );
+            }
+        } else {
+            player.sendMessage(
+                    Locale.use(
+                            Locale.Messages.NOTIFY_TRANSFER,
+                            transaction.value,
+                            getNameFromWallet(transaction.from)
+                    )
+            );
+        }
+
     }
 
     public static void checkTransfers(ServerPlayerEntity player) {

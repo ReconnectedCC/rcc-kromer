@@ -39,10 +39,9 @@ public class KromerWebsockets extends AbstractKromerClient {
         var toWallet = Kromer.database.getWallet(tx.to);
         var fromWallet = Kromer.database.getWallet(tx.from);
 
-        if (toWallet == null || fromWallet == null) return;
+        if (toWallet == null) return;
 
         var toPlayer = server.getPlayerManager().getPlayer(toWallet.getLeft());
-        var fromPlayer = server.getPlayerManager().getPlayer(fromWallet.getLeft());
 
         if (toPlayer == null) {
             var realWallet = toWallet.getRight();
@@ -52,10 +51,13 @@ public class KromerWebsockets extends AbstractKromerClient {
             Kromer.notifyTransfer(toPlayer, tx);
         }
 
-        if (fromPlayer == null) {
-            var realWallet = fromWallet.getRight();
-            realWallet.outgoingNotSeen = appendTransaction(realWallet.outgoingNotSeen, tx);
-            Kromer.database.setWallet(fromWallet.getLeft(), realWallet);
+        if(fromWallet != null) {
+            var fromPlayer = server.getPlayerManager().getPlayer(fromWallet.getLeft());
+            if (fromPlayer == null) {
+                var realWallet = fromWallet.getRight();
+                realWallet.outgoingNotSeen = appendTransaction(realWallet.outgoingNotSeen, tx);
+                Kromer.database.setWallet(fromWallet.getLeft(), realWallet);
+            }
         }
     }
 

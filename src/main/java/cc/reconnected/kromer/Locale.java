@@ -1,6 +1,9 @@
 package cc.reconnected.kromer;
 
 import eu.pb4.placeholders.api.TextParserUtils;
+import eu.pb4.placeholders.api.node.LiteralNode;
+import eu.pb4.placeholders.api.node.parent.ParentNode;
+import eu.pb4.placeholders.api.parsers.TextParserV1;
 import net.minecraft.text.Text;
 
 public class Locale {
@@ -40,6 +43,9 @@ public class Locale {
         NOTIFY_TRANSFER(
             "<green>You have been sent <dark_green>%.2fKRO</dark_green>, from <dark_green>%s</dark_green>."
         ),
+        NOTIFY_TRANSFER_MESSAGE(
+                "<green>You have been sent <dark_green>%.2fKRO</dark_green>, from <dark_green>%s</dark_green>, with message: \"%s\"."
+        ),
         OUTGOING_NOT_SEEN(
             "<red>From your account, <dark_red>%.2fKRO</dark_red>, has been sent to <dark_red>%s</dark_red>. Executed at: %s.</red>"
         ),
@@ -74,9 +80,15 @@ public class Locale {
         public Text asText(Object... args) {
             return TextParserUtils.formatText(raw(args));
         }
+        public Text asSafeText(Object... args) {
+            return (new ParentNode(TextParserV1.SAFE.parseNodes(new LiteralNode(raw(args))))).toText(null, true);
+        }
     }
 
     public static Text use(Messages message, Object... args) {
         return message.asText(args);
+    }
+    public static Text useSafe(Messages message, Object... args) {
+        return message.asSafeText(args);
     }
 }
