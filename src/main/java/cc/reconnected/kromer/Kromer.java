@@ -1,4 +1,12 @@
-// hi
+/*
+   When we get done, they gon' play this back
+   I thought fine shit wanted me, but she wanted Max
+   I can kick my feet up right now, I can really relax
+   She gon' fuck the gang for free, we ain't gotta pull out stacks
+   And my drip be out your league, I just put on black
+
+   sad.ovh, MIT (C) 2025
+*/
 
 package cc.reconnected.kromer;
 
@@ -9,12 +17,9 @@ import cc.reconnected.kromer.commands.TransactionsCommand;
 import cc.reconnected.kromer.database.Database;
 import cc.reconnected.kromer.database.Wallet;
 import cc.reconnected.kromer.database.WelfareData;
-import com.google.gson.Gson;
 import com.mojang.authlib.GameProfile;
 import java.net.URI;
 import java.net.URISyntaxException;
-import java.net.http.HttpClient;
-import java.net.http.HttpResponse;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.*;
@@ -43,23 +48,7 @@ import ovh.sad.jkromer.http.misc.StartWs;
 import ovh.sad.jkromer.jKromer;
 import ovh.sad.jkromer.models.Transaction;
 
-import java.math.BigDecimal;
-import java.math.MathContext;
-import java.math.RoundingMode;
-import java.net.URI;
-import java.net.URISyntaxException;
-import java.net.http.HttpClient;
-import java.net.http.HttpRequest;
-import java.net.http.HttpResponse;
-import java.time.Duration;
-import java.time.LocalDateTime;
-import java.util.*;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.TimeUnit;
-
 public class Kromer implements DedicatedServerModInitializer {
-
     public static Logger LOGGER = LoggerFactory.getLogger("rcc-kromer");
     public static Database database = new Database();
 
@@ -113,7 +102,6 @@ public class Kromer implements DedicatedServerModInitializer {
     }
 
     public void onInitializeServer() {
-
         Flyway flyway = Flyway.configure()
                 .dataSource("jdbc:sqlite:rcc-kromer.sqlite", null, null)
                 .baselineOnMigrate(true)
