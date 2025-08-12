@@ -1,5 +1,6 @@
 package cc.reconnected.kromer.commands;
 
+import static cc.reconnected.kromer.Kromer.NETWORK_EXECUTOR;
 import static net.minecraft.server.command.CommandManager.literal;
 
 import cc.reconnected.kromer.Kromer;
@@ -12,6 +13,8 @@ import net.minecraft.server.command.CommandManager;
 import net.minecraft.server.command.ServerCommandSource;
 import ovh.sad.jkromer.http.Result;
 import ovh.sad.jkromer.http.addresses.GetAddress;
+
+import java.util.concurrent.CompletableFuture;
 
 public class BalanceCommand {
 
@@ -55,15 +58,28 @@ public class BalanceCommand {
             return 0;
         }
 
-        GetAddress.execute(wallet.address).whenComplete((b, ex) -> {
-            switch (b) {
-                case Result.Ok<GetAddress.GetAddressBody> ok -> context.getSource().sendFeedback(() -> Locale.use(Locale.Messages.BALANCE, ok.value().address.balance), false);
-                case Result.Err<GetAddress.GetAddressBody> err -> context.getSource()
-                        .sendFeedback(() ->
-                                Locale.use(Locale.Messages.ERROR, err.error())
-                        , false);
-            }
-        }).join();
+        // Run network call off the main thread
+        CompletableFuture
+                .supplyAsync(() -> GetAddress.execute(wallet.address), NETWORK_EXECUTOR)
+                .thenCompose(future -> future) // because GetAddress.execute returns CompletableFuture<Result<...>>
+                .whenComplete((b, ex) -> {
+                    if (ex != null) {
+                        source.getServer().execute(() ->
+                                source.sendFeedback(() -> Locale.use(Locale.Messages.ERROR, ex.getMessage()), false)
+                        );
+                        return;
+                    }
+                    switch (b) {
+                        case Result.Ok<GetAddress.GetAddressBody> ok ->
+                                source.getServer().execute(() ->
+                                        source.sendFeedback(() -> Locale.use(Locale.Messages.BALANCE, ok.value().address.balance), false)
+                                );
+                        case Result.Err<GetAddress.GetAddressBody> err ->
+                                source.getServer().execute(() ->
+                                        source.sendFeedback(() -> Locale.use(Locale.Messages.ERROR, err.error()), false)
+                                );
+                    }
+                });
         return 1;
     }
 }

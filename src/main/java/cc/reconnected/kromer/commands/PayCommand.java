@@ -1,5 +1,6 @@
 package cc.reconnected.kromer.commands;
 
+import static cc.reconnected.kromer.Kromer.NETWORK_EXECUTOR;
 import static net.minecraft.server.command.CommandManager.argument;
 import static net.minecraft.server.command.CommandManager.literal;
 
@@ -16,6 +17,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
 import net.minecraft.command.CommandRegistryAccess;
 import net.minecraft.server.command.CommandManager;
@@ -233,59 +235,67 @@ public class PayCommand {
             );
         return 1;
     }
-
     private static int confirmPay(CommandContext<ServerCommandSource> context) {
         PendingPayment payment;
         ServerPlayerEntity player;
         try {
             player = Objects.requireNonNull(context.getSource().getPlayer());
-            payment = pendingPayments.remove(Objects.requireNonNull(context.getSource().getPlayer()).getUuid());
+            payment = pendingPayments.remove(player.getUuid());
         } catch (NullPointerException e) {
-            // Player is not online or command source is not a player
-            context.getSource().sendFeedback(() -> Text.literal("You must be online to use this command.").formatted(Formatting.RED), false);
+            context.getSource().sendFeedback(
+                    () -> Text.literal("You must be online to use this command.")
+                            .formatted(Formatting.RED),
+                    false
+            );
             return 0;
         }
 
         if (payment == null) {
-            context
-                .getSource()
-                .sendFeedback(
+            context.getSource().sendFeedback(
                     () -> Locale.use(Locale.Messages.NO_PENDING),
                     false
-                );
+            );
             return 0;
         }
 
         Wallet wallet = Kromer.database.getWallet(player.getUuid());
-
         if (wallet == null) {
-            context
-                .getSource()
-                .sendFeedback(
+            context.getSource().sendFeedback(
                     () -> Locale.use(Locale.Messages.NO_WALLET),
                     false
-                );
+            );
             return 0;
         }
-        MakeTransaction.execute(wallet.privatekey, payment.to, payment.amount, payment.metadata)
-                .whenComplete((b, ex) -> {
-                    switch (b) {
-                        case Result.Ok<MakeTransaction.MakeTransactionResponse> ok -> context
-                                .getSource()
-                                .sendFeedback(
-                                        () ->
-                                                Locale.use(
-                                                        Locale.Messages.PAYMENT_CONFIRMED,
-                                                        payment.amount,
-                                                        payment.to
-                                                ),
-                                        false);
-                        case Result.Err<MakeTransaction.MakeTransactionResponse> err -> context.getSource()
-                                .sendFeedback(() ->
-                                                Locale.use(Locale.Messages.ERROR, err.error())
-                                        , false);
-                    }
-                }).join();
+
+        CompletableFuture
+                .supplyAsync(() -> MakeTransaction.execute(wallet.privatekey, payment.to, payment.amount, payment.metadata), NETWORK_EXECUTOR)
+                .thenCompose(future -> future)  // unwrap nested CompletableFuture<Result<...>>
+                .whenComplete((result, ex) -> {
+                    context.getSource().getServer().execute(() -> {
+                        if (ex != null) {
+                            context.getSource().sendFeedback(
+                                    () -> Locale.use(Locale.Messages.ERROR, ex.getMessage()),
+                                    false
+                            );
+                            return;
+                        }
+                        switch (result) {
+                            case Result.Ok<MakeTransaction.MakeTransactionResponse> ok ->
+                                    context.getSource().sendFeedback(
+                                            () -> Locale.use(Locale.Messages.PAYMENT_CONFIRMED, payment.amount, payment.to),
+                                            false
+                                    );
+                            case Result.Err<MakeTransaction.MakeTransactionResponse> err ->
+                                    context.getSource().sendFeedback(
+                                            () -> Locale.use(Locale.Messages.ERROR, err.error()),
+                                            false
+                                    );
+                        }
+                    });
+                });
+
+
         return 1;
     }
+
 }

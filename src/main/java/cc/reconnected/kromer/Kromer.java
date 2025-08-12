@@ -23,9 +23,8 @@ import java.net.URISyntaxException;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.*;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.*;
+
 import me.alexdevs.solstice.Solstice;
 import me.alexdevs.solstice.modules.afk.AfkModule;
 import me.alexdevs.solstice.modules.afk.data.AfkPlayerData;
@@ -52,6 +51,7 @@ import ovh.sad.jkromer.models.Transaction;
 public class Kromer implements DedicatedServerModInitializer {
     public static Logger LOGGER = LoggerFactory.getLogger("rcc-kromer");
     public static Database database = new Database();
+    public static final ExecutorService NETWORK_EXECUTOR = Executors.newCachedThreadPool();
 
     public static cc.reconnected.kromer.RccKromerConfig config;
     private static KromerWebsockets client;
@@ -63,7 +63,9 @@ public class Kromer implements DedicatedServerModInitializer {
         throws URISyntaxException {
         LOGGER.debug("Connecting to Websocket..");
 
-        StartWs.execute()
+        CompletableFuture
+                .supplyAsync(StartWs::execute, NETWORK_EXECUTOR)
+                .thenCompose(f -> f)
                 .whenComplete((b, ex) -> {
                     switch (b) {
                         case Result.Ok<StartWs.StartWsResponse> ok -> {
@@ -211,7 +213,9 @@ public class Kromer implements DedicatedServerModInitializer {
                     );
                 }
                 if(!welfareData.optedOut) {
-                    GiveMoney.execute(config.KromerKey(), finalWelfare, wallet.address).join();
+                    CompletableFuture
+                            .supplyAsync(() -> GiveMoney.execute(config.KromerKey(), finalWelfare, wallet.address), NETWORK_EXECUTOR)
+                            .thenCompose(f -> f);
                 }
             });
     }
@@ -345,24 +349,38 @@ public class Kromer implements DedicatedServerModInitializer {
             );
         }
 
-        var createWalletResult = CreateWallet.execute(config.KromerKey(), name, uuid.toString()).join();
+        CompletableFuture
+                .supplyAsync(() -> CreateWallet.execute(config.KromerKey(), name, uuid.toString()), NETWORK_EXECUTOR)
+                .thenCompose(f -> f)
+                .whenComplete((createWalletResult, ex) -> {
+                    if (ex != null) {
+                        LOGGER.error("Failed to create wallet for user " + name, ex);
+                        return;
+                    }
+                    if (createWalletResult instanceof Result.Ok<CreateWallet.CreateWalletResponse> createWallet) {
+                        Transaction[] array = {};
+                        Wallet wallet = new Wallet(
+                                createWallet.value().address,
+                                createWallet.value().privatekey,
+                                array,
+                                array
+                        );
+                        database.setWallet(uuid, wallet);
 
-        if (createWalletResult instanceof Result.Ok(CreateWallet.CreateWalletResponse createWallet)) {
-            Transaction[] array = {};
-            Wallet wallet = new Wallet(
-                    createWallet.address,
-                    createWallet.privatekey,
-                    array,
-                    array
-            );
-            database.setWallet(uuid, wallet);
-
-            if(kroAmount != 0) {
-                GiveMoney.execute(config.KromerKey(), kroAmount, createWallet.address).join();
-            }
-        } else if (createWalletResult instanceof Result.Err(Errors.ErrorResponse err)) {
-            System.out.println("Was not able to give user " + name + " their wallet. " + err.error() + ", param: " + err.parameter());
-        }
+                        if (kroAmount != 0) {
+                            CompletableFuture
+                                    .supplyAsync(() -> GiveMoney.execute(config.KromerKey(), kroAmount, createWallet.value().address), NETWORK_EXECUTOR)
+                                    .thenCompose(f -> f)
+                                    .whenComplete((giveMoneyResult, ex2) -> {
+                                        if (ex2 != null) {
+                                            LOGGER.error("Failed to give retroactive kro to " + name, ex2);
+                                        }
+                                    });
+                        }
+                    } else if (createWalletResult instanceof Result.Err<CreateWallet.CreateWalletResponse> err) {
+                        LOGGER.warn("Was not able to give user " + name + " their wallet. " + err.error().error() + ", param: " + err.error().parameter());
+                    }
+                });
 
     }
 }
