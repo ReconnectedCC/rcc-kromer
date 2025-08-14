@@ -93,8 +93,7 @@ public class TransactionsCommand {
                                 final SimpleDateFormat f = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
                                 f.setTimeZone(TimeZone.getTimeZone("UTC"));
 
-                                for (var transaction : responseObj.transactions) {
-                                    source.sendFeedback(() -> Locale.use(Messages.TRANSACTION,
+                                for (var transaction : responseObj.transactions) {source.sendFeedback(() -> Locale.useSafe(Messages.TRANSACTION,
                                             Objects.equals(transaction.type, "transfer") ? "<aqua>" : "<gold>",
                                             f.format(transaction.time), // Always UTC
                                             transaction.id,
