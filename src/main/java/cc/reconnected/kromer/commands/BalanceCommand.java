@@ -1,27 +1,28 @@
 package cc.reconnected.kromer.commands;
 
 import static cc.reconnected.kromer.Kromer.NETWORK_EXECUTOR;
-import static net.minecraft.server.command.CommandManager.literal;
+import static net.minecraft.commands.Commands.literal;
 
 import cc.reconnected.kromer.Kromer;
 import cc.reconnected.kromer.Locale;
 import cc.reconnected.kromer.database.Wallet;
 import com.mojang.brigadier.CommandDispatcher;
 import com.mojang.brigadier.context.CommandContext;
-import net.minecraft.command.CommandRegistryAccess;
-import net.minecraft.server.command.CommandManager;
-import net.minecraft.server.command.ServerCommandSource;
 import ovh.sad.jkromer.http.Result;
 import ovh.sad.jkromer.http.addresses.GetAddress;
 
 import java.util.concurrent.CompletableFuture;
+import net.minecraft.commands.CommandBuildContext;
+import net.minecraft.commands.CommandSourceStack;
+import net.minecraft.commands.Commands;
+import net.minecraft.server.level.ServerPlayer;
 
 public class BalanceCommand {
 
     public static void register(
-        CommandDispatcher<ServerCommandSource> dispatcher,
-        CommandRegistryAccess registryAccess,
-        CommandManager.RegistrationEnvironment environment
+        CommandDispatcher<CommandSourceStack> dispatcher,
+        CommandBuildContext registryAccess,
+        Commands.CommandSelection environment
     ) {
         dispatcher.register(
             literal("balance").executes(BalanceCommand::runBalance)
@@ -31,17 +32,17 @@ public class BalanceCommand {
         );
     }
 
-    private static int runBalance(CommandContext<ServerCommandSource> context) {
+    private static int runBalance(CommandContext<CommandSourceStack> context) {
         var source = context.getSource();
         var player = source.getPlayer();
         assert player != null;
 
-        Wallet wallet = Kromer.database.getWallet(player.getUuid());
+        Wallet wallet = Kromer.database.getWallet(player.getUUID());
 
         if (!Kromer.kromerStatus) {
             context
                 .getSource()
-                .sendFeedback(
+                .sendSuccess(
                     () -> Locale.use(Locale.Messages.KROMER_UNAVAILABLE),
                     false
                 );
@@ -51,7 +52,7 @@ public class BalanceCommand {
         if (wallet == null) {
             context
                 .getSource()
-                .sendFeedback(
+                .sendSuccess(
                     () -> Locale.use(Locale.Messages.NO_WALLET),
                     false
                 );
@@ -65,18 +66,18 @@ public class BalanceCommand {
                 .whenComplete((b, ex) -> {
                     if (ex != null) {
                         source.getServer().execute(() ->
-                                source.sendFeedback(() -> Locale.use(Locale.Messages.ERROR, ex.getMessage()), false)
+                                source.sendSuccess(() -> Locale.use(Locale.Messages.ERROR, ex.getMessage()), false)
                         );
                         return;
                     }
                     switch (b) {
                         case Result.Ok<GetAddress.GetAddressBody> ok ->
                                 source.getServer().execute(() ->
-                                        source.sendFeedback(() -> Locale.use(Locale.Messages.BALANCE, ok.value().address.balance), false)
+                                        source.sendSuccess(() -> Locale.use(Locale.Messages.BALANCE, ok.value().address.balance), false)
                                 );
                         case Result.Err<GetAddress.GetAddressBody> err ->
                                 source.getServer().execute(() ->
-                                        source.sendFeedback(() -> Locale.use(Locale.Messages.ERROR, err.error()), false)
+                                        source.sendSuccess(() -> Locale.use(Locale.Messages.ERROR, err.error()), false)
                                 );
                     }
                 });

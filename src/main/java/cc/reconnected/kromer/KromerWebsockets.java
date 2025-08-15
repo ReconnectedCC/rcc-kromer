@@ -1,7 +1,5 @@
 package cc.reconnected.kromer;
 
-import cc.reconnected.kromer.database.Wallet;
-
 import java.net.URI;
 import java.util.*;
 
@@ -41,22 +39,22 @@ public class KromerWebsockets extends AbstractKromerClient {
 
         if (toWallet == null) return;
 
-        var toPlayer = server.getPlayerManager().getPlayer(toWallet.getLeft());
+        var toPlayer = server.getPlayerList().getPlayer(toWallet.getA());
 
         if (toPlayer == null) {
-            var realWallet = toWallet.getRight();
+            var realWallet = toWallet.getB();
             realWallet.incomingNotSeen = appendTransaction(realWallet.incomingNotSeen, tx);
-            Kromer.database.setWallet(toWallet.getLeft(), realWallet);
+            Kromer.database.setWallet(toWallet.getA(), realWallet);
         } else {
             Kromer.notifyTransfer(toPlayer, tx);
         }
 
         if(fromWallet != null) {
-            var fromPlayer = server.getPlayerManager().getPlayer(fromWallet.getLeft());
+            var fromPlayer = server.getPlayerList().getPlayer(fromWallet.getA());
             if (fromPlayer == null) {
-                var realWallet = fromWallet.getRight();
+                var realWallet = fromWallet.getB();
                 realWallet.outgoingNotSeen = appendTransaction(realWallet.outgoingNotSeen, tx);
-                Kromer.database.setWallet(fromWallet.getLeft(), realWallet);
+                Kromer.database.setWallet(fromWallet.getA(), realWallet);
             }
         }
     }

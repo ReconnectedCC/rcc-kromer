@@ -3,9 +3,8 @@ package cc.reconnected.kromer.database;
 import cc.reconnected.kromer.Kromer;
 import java.sql.*;
 import java.util.UUID;
-
+import net.minecraft.util.Tuple;
 import com.google.gson.Gson;
-import net.minecraft.util.Pair;
 import ovh.sad.jkromer.models.Transaction;
 
 public class Database {
@@ -116,7 +115,7 @@ public class Database {
         return null;
     }
 
-    public Pair<UUID, Wallet> getWallet(String address) {
+    public Tuple<UUID, Wallet> getWallet(String address) {
         try {
             PreparedStatement stmt = connection.prepareStatement(
                 """
@@ -140,7 +139,7 @@ public class Database {
                         Transaction[].class
                     )
                 );
-                return new Pair<>(uuid, wallet);
+                return new Tuple<>(uuid, wallet);
             }
         } catch (SQLException | IllegalArgumentException e) {
             e.printStackTrace();

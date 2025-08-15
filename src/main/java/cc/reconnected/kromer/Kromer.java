@@ -34,12 +34,13 @@ import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents;
 import net.minecraft.server.MinecraftServer;
-import net.minecraft.server.network.ServerPlayerEntity;
-import net.minecraft.util.Pair;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.util.Tuple;
 import org.flywaydb.core.Flyway;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import cc.reconnected.kromer.CommonMetaParser;
+import cc.reconnected.kromer.CommonMetaParser.ParseResult;
 import ovh.sad.jkromer.Errors;
 import ovh.sad.jkromer.http.Result;
 import ovh.sad.jkromer.http.internal.CreateWallet;
@@ -113,7 +114,7 @@ public class Kromer implements DedicatedServerModInitializer {
         flyway.migrate();
 
         Solstice.playerData.registerData(
-            "welfare",
+            Solstice.ID.withPath("welfare"),
             WelfareData.class,
             WelfareData::new
         );
@@ -127,7 +128,7 @@ public class Kromer implements DedicatedServerModInitializer {
         });
 
         ServerPlayConnectionEvents.JOIN.register((a, b, c) -> {
-            grantWallet(a.player.getEntityName(), a.player.getUuid(), a.player);
+            grantWallet(a.player.getScoreboardName(), a.player.getUUID(), a.player);
             checkTransfers(a.player);
         });
 
@@ -162,16 +163,16 @@ public class Kromer implements DedicatedServerModInitializer {
     }
 
     public static void executeWelfare() {
-        List<ServerPlayerEntity> playersWithSupporter = client.server
-            .getPlayerManager()
+        List<ServerPlayer> playersWithSupporter = client.server
             .getPlayerList()
+            .getPlayers()
             .stream()
             .filter(z -> Permissions.check(z, config.SupporterGroup()) && !Permissions.check(z, config.BotPermission()))
             .toList();
 
-        List<ServerPlayerEntity> playersWithoutSupporter = client.server
-            .getPlayerManager()
+        List<ServerPlayer> playersWithoutSupporter = client.server
             .getPlayerList()
+            .getPlayers()
             .stream()
             .filter(z -> !Permissions.check(z, config.SupporterGroup()) && !Permissions.check(z, config.BotPermission()))
             .toList();
@@ -189,26 +190,26 @@ public class Kromer implements DedicatedServerModInitializer {
         float finalWelfare = Math.round(welfare * 100f) / 100f;
 
         client.server
-            .getPlayerManager()
             .getPlayerList()
+            .getPlayers()
             .forEach(p -> {
                 if(config.BotPermission() != null) {
                     if(Permissions.check(p, config.BotPermission())) return; // If bot then bye
                 }
 
-                Wallet wallet = Kromer.database.getWallet(p.getUuid());
+                Wallet wallet = Kromer.database.getWallet(p.getUUID());
                 if (wallet == null) return;
 
                 if (
-                    Solstice.modules.getModule(AfkModule.class).isPlayerAfk(p)
+                    Solstice.modules.getModule(AfkModule.class).get().isPlayerAfk(p)
                 ) return;
                 WelfareData welfareData = Solstice.playerData
-                        .get(p.getUuid())
+                        .get(p.getUUID())
                         .getData(WelfareData.class);
                 if (
                     !(welfareData.welfareMuted || welfareData.optedOut)
                 ) {
-                    p.sendMessage(
+                    p.sendSystemMessage(
                         Locale.use(Locale.Messages.WELFARE_GIVEN, finalWelfare)
                     );
                 }
@@ -222,12 +223,12 @@ public class Kromer implements DedicatedServerModInitializer {
 
     public static String getNameFromWallet(String address) {
         String userName = address; // if from is
-        Pair<UUID, Wallet> fromWallet = database.getWallet(userName);
+        Tuple<UUID, Wallet> fromWallet = database.getWallet(userName);
 
         if (fromWallet != null) {
             Optional<GameProfile> gf = Objects.requireNonNull(
-                client.server.getUserCache()
-            ).getByUuid(fromWallet.getLeft());
+                client.server.getProfileCache()
+            ).get(fromWallet.getA());
             if (gf.isPresent()) {
                 userName = gf.get().getName();
             }
@@ -239,14 +240,14 @@ public class Kromer implements DedicatedServerModInitializer {
     }
 
     public static void notifyTransfer(
-        ServerPlayerEntity player,
+        ServerPlayer player,
         Transaction transaction
     ) {
         var result = CommonMetaParser.parseWithResult(transaction.metadata);
 
         if(result.success) {
             if(result.pairs.containsKey("message")) {
-                player.sendMessage(
+                player.sendSystemMessage(
                         Locale.useSafe( // use useSafe, removes all <click's and whatnot.
                                 Locale.Messages.NOTIFY_TRANSFER_MESSAGE,
                                 transaction.value,
@@ -255,7 +256,7 @@ public class Kromer implements DedicatedServerModInitializer {
                         )
                 );
             } else { // Don't duplicate code here. However, I don't want to make a extra function, so be it.
-                player.sendMessage(
+                player.sendSystemMessage(
                         Locale.use(
                                 Locale.Messages.NOTIFY_TRANSFER,
                                 transaction.value,
@@ -264,7 +265,7 @@ public class Kromer implements DedicatedServerModInitializer {
                 );
             }
         } else {
-            player.sendMessage(
+            player.sendSystemMessage(
                     Locale.use(
                             Locale.Messages.NOTIFY_TRANSFER,
                             transaction.value,
@@ -275,8 +276,8 @@ public class Kromer implements DedicatedServerModInitializer {
 
     }
 
-    public static void checkTransfers(ServerPlayerEntity player) {
-        Wallet wallet = database.getWallet(player.getUuid());
+    public static void checkTransfers(ServerPlayer player) {
+        Wallet wallet = database.getWallet(player.getUUID());
 
         if (wallet == null) return;
 
@@ -284,7 +285,7 @@ public class Kromer implements DedicatedServerModInitializer {
             for (int i = 0; i < wallet.outgoingNotSeen.length; i++) {
                 Transaction transaction = wallet.outgoingNotSeen[i];
 
-                player.sendMessage(
+                player.sendSystemMessage(
                     Locale.use(
                         Locale.Messages.OUTGOING_NOT_SEEN,
                         transaction.value,
@@ -298,7 +299,7 @@ public class Kromer implements DedicatedServerModInitializer {
         if (wallet.incomingNotSeen.length != 0) {
             for (int i = 0; i < wallet.incomingNotSeen.length; i++) {
                 Transaction transaction = wallet.incomingNotSeen[i];
-                player.sendMessage(
+                player.sendSystemMessage(
                     Locale.use(
                         Locale.Messages.INCOMING_NOT_SEEN,
                         getNameFromWallet(transaction.from),
@@ -311,7 +312,7 @@ public class Kromer implements DedicatedServerModInitializer {
 
         wallet.incomingNotSeen = new Transaction[] {};
         wallet.outgoingNotSeen = new Transaction[] {};
-        database.setWallet(player.getUuid(), wallet);
+        database.setWallet(player.getUUID(), wallet);
     }
 
     private static long getDelayUntilNextHourInSeconds() {
@@ -328,7 +329,7 @@ public class Kromer implements DedicatedServerModInitializer {
     public static void grantWallet(
         String name,
         UUID uuid,
-        ServerPlayerEntity player
+        ServerPlayer player
     ) {
         if (database.getWallet(uuid) != null) {
             return;
@@ -337,6 +338,7 @@ public class Kromer implements DedicatedServerModInitializer {
         // Retroactive KRO giving
         AfkPlayerData solsticeData = Solstice.modules
             .getModule(AfkModule.class)
+                .get()
             .getPlayerData(uuid);
         float kroAmountRaw = (float) (((double) solsticeData.activeTime /
                 3600) *
@@ -344,7 +346,7 @@ public class Kromer implements DedicatedServerModInitializer {
         float kroAmount = Math.round(kroAmountRaw * 100f) / 100f;
 
         if (kroAmount != 0 && player != null) {
-            player.sendMessage(
+            player.sendSystemMessage(
                 Locale.use(Locale.Messages.RETROACTIVE, kroAmount)
             );
         }

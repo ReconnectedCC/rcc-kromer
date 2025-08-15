@@ -4,7 +4,7 @@ import eu.pb4.placeholders.api.TextParserUtils;
 import eu.pb4.placeholders.api.node.LiteralNode;
 import eu.pb4.placeholders.api.node.parent.ParentNode;
 import eu.pb4.placeholders.api.parsers.TextParserV1;
-import net.minecraft.text.Text;
+import net.minecraft.network.chat.Component;
 
 public class Locale {
 
@@ -77,18 +77,18 @@ public class Locale {
             return String.format(java.util.Locale.US, template, args);
         }
 
-        public Text asText(Object... args) {
+        public Component asText(Object... args) {
             return TextParserUtils.formatText(raw(args));
         }
-        public Text asSafeText(Object... args) {
+        public Component asSafeText(Object... args) {
             return (new ParentNode(TextParserV1.SAFE.parseNodes(new LiteralNode(raw(args))))).toText(null, true);
         }
     }
 
-    public static Text use(Messages message, Object... args) {
+    public static Component use(Messages message, Object... args) {
         return message.asText(args);
     }
-    public static Text useSafe(Messages message, Object... args) {
+    public static Component useSafe(Messages message, Object... args) {
         return message.asSafeText(args);
     }
 }

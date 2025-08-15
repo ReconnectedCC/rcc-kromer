@@ -1,8 +1,8 @@
 package cc.reconnected.kromer.commands;
 
 import static cc.reconnected.kromer.Kromer.NETWORK_EXECUTOR;
-import static net.minecraft.server.command.CommandManager.argument;
-import static net.minecraft.server.command.CommandManager.literal;
+import static net.minecraft.commands.Commands.argument;
+import static net.minecraft.commands.Commands.literal;
 
 import cc.reconnected.kromer.Kromer;
 import cc.reconnected.kromer.Locale;
@@ -14,10 +14,6 @@ import com.mojang.brigadier.arguments.IntegerArgumentType;
 import com.mojang.brigadier.context.CommandContext;
 import com.mojang.brigadier.exceptions.CommandSyntaxException;
 import eu.pb4.placeholders.api.TextParserUtils;
-import net.minecraft.command.CommandRegistryAccess;
-import net.minecraft.server.command.CommandManager;
-import net.minecraft.server.command.ServerCommandSource;
-import net.minecraft.text.Text;
 import ovh.sad.jkromer.http.addresses.GetAddressTransactions;
 import ovh.sad.jkromer.http.Result;
 
@@ -25,14 +21,18 @@ import java.text.SimpleDateFormat;
 import java.util.Objects;
 import java.util.TimeZone;
 import java.util.concurrent.CompletableFuture;
+import net.minecraft.commands.CommandBuildContext;
+import net.minecraft.commands.CommandSourceStack;
+import net.minecraft.commands.Commands;
+import net.minecraft.server.level.ServerPlayer;
 
 
 public class TransactionsCommand {
 
     public static void register(
-            CommandDispatcher<ServerCommandSource> dispatcher,
-            CommandRegistryAccess registryAccess,
-            CommandManager.RegistrationEnvironment environment
+            CommandDispatcher<CommandSourceStack> dispatcher,
+            CommandBuildContext registryAccess,
+            Commands.CommandSelection environment
     ) {
         dispatcher.register(
                 literal("transactions")
@@ -43,16 +43,16 @@ public class TransactionsCommand {
                         )
         );
     }
-    public static int checkTransactions(CommandContext<ServerCommandSource> context) throws CommandSyntaxException {
-        Wallet wallet = Kromer.database.getWallet(context.getSource().getPlayer().getUuid());
+    public static int checkTransactions(CommandContext<CommandSourceStack> context) throws CommandSyntaxException {
+        Wallet wallet = Kromer.database.getWallet(context.getSource().getPlayer().getUUID());
 
         if (!Kromer.kromerStatus) {
-            context.getSource().sendFeedback(() -> Locale.use(Locale.Messages.KROMER_UNAVAILABLE), false);
+            context.getSource().sendSuccess(() -> Locale.use(Locale.Messages.KROMER_UNAVAILABLE), false);
             return 0;
         }
 
         if (wallet == null) {
-            context.getSource().sendFeedback(() -> Locale.use(Locale.Messages.NO_WALLET), false);
+            context.getSource().sendSuccess(() -> Locale.use(Locale.Messages.NO_WALLET), false);
             return 0;
         }
 
@@ -75,7 +75,7 @@ public class TransactionsCommand {
                 .whenComplete((result, throwable) -> {
                     source.getServer().execute(() -> {
                         if (throwable != null) {
-                            source.sendFeedback(() -> Locale.use(Locale.Messages.ERROR, throwable), false);
+                            source.sendSuccess(() -> Locale.use(Locale.Messages.ERROR, throwable), false);
                             return;
                         }
 
@@ -83,17 +83,17 @@ public class TransactionsCommand {
                             case Result.Ok<GetAddressTransactions.GetAddressTransactionsBody> ok -> {
                                 var responseObj = ok.value();
 
-                                source.sendFeedback(() -> Locale.use(Locale.Messages.TRANSACTIONS_INFO, player.getEntityName(), finalPage), false);
+                                source.sendSuccess(() -> Locale.use(Locale.Messages.TRANSACTIONS_INFO, player.getScoreboardName(), finalPage), false);
 
                                 if (responseObj.transactions == null || responseObj.transactions.isEmpty()) {
-                                    source.sendFeedback(() -> Locale.use(Locale.Messages.TRANSACTIONS_EMPTY), false);
+                                    source.sendSuccess(() -> Locale.use(Locale.Messages.TRANSACTIONS_EMPTY), false);
                                     return;
                                 }
 
                                 final SimpleDateFormat f = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
                                 f.setTimeZone(TimeZone.getTimeZone("UTC"));
 
-                                for (var transaction : responseObj.transactions) {source.sendFeedback(() -> Locale.useSafe(Messages.TRANSACTION,
+                                for (var transaction : responseObj.transactions) {source.sendSuccess(() -> Locale.useSafe(Messages.TRANSACTION,
                                             Objects.equals(transaction.type, "transfer") ? "<aqua>" : "<gold>",
                                             f.format(transaction.time), // Always UTC
                                             transaction.id,
@@ -116,10 +116,10 @@ public class TransactionsCommand {
                                             .append(finalPage + 1)
                                             .append("'><aqua>[Next Page]</aqua></run_cmd>");
                                 }
-                                source.sendFeedback(() -> TextParserUtils.formatText(nav.toString()), false);
+                                source.sendSuccess(() -> TextParserUtils.formatText(nav.toString()), false);
                             }
                             case Result.Err<GetAddressTransactions.GetAddressTransactionsBody> err -> {
-                                source.sendFeedback(() -> Locale.use(Locale.Messages.ERROR, err.error()), false);
+                                source.sendSuccess(() -> Locale.use(Locale.Messages.ERROR, err.error()), false);
                             }
                         }
                     });

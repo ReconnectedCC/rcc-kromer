@@ -1,8 +1,8 @@
 package cc.reconnected.kromer.commands;
 
 import static cc.reconnected.kromer.Kromer.NETWORK_EXECUTOR;
-import static net.minecraft.server.command.CommandManager.argument;
-import static net.minecraft.server.command.CommandManager.literal;
+import static net.minecraft.commands.Commands.argument;
+import static net.minecraft.commands.Commands.literal;
 
 import cc.reconnected.kromer.Kromer;
 import cc.reconnected.kromer.Locale;
@@ -19,12 +19,12 @@ import java.util.Objects;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
-import net.minecraft.command.CommandRegistryAccess;
-import net.minecraft.server.command.CommandManager;
-import net.minecraft.server.command.ServerCommandSource;
-import net.minecraft.server.network.ServerPlayerEntity;
-import net.minecraft.text.Text;
-import net.minecraft.util.Formatting;
+import net.minecraft.ChatFormatting;
+import net.minecraft.commands.CommandBuildContext;
+import net.minecraft.commands.CommandSourceStack;
+import net.minecraft.commands.Commands;
+import net.minecraft.network.chat.Component;
+import net.minecraft.server.level.ServerPlayer;
 import ovh.sad.jkromer.http.Result;
 import ovh.sad.jkromer.http.transactions.MakeTransaction;
 
@@ -41,9 +41,9 @@ public class PayCommand {
     }
 
     public static void register(
-        CommandDispatcher<ServerCommandSource> dispatcher,
-        CommandRegistryAccess registryAccess,
-        CommandManager.RegistrationEnvironment environment
+        CommandDispatcher<CommandSourceStack> dispatcher,
+        CommandBuildContext registryAccess,
+        Commands.CommandSelection environment
     ) {
         dispatcher.register(
             literal("confirm_pay").executes(PayCommand::confirmPay)
@@ -73,8 +73,8 @@ public class PayCommand {
             .collect(Collectors.joining(";"));
     }
 
-    private static int executePay(CommandContext<ServerCommandSource> context) {
-        pendingPayments.remove(context.getSource().getPlayer().getUuid());
+    private static int executePay(CommandContext<CommandSourceStack> context) {
+        pendingPayments.remove(context.getSource().getPlayer().getUUID());
 
         String recipientInput = StringArgumentType.getString(
             context,
@@ -86,11 +86,11 @@ public class PayCommand {
         if (!Kromer.kromerStatus) {
             context
                 .getSource()
-                .sendFeedback(
+                .sendSuccess(
                     () ->
-                        Text.literal(
+                        Component.literal(
                             "Kromer is currently unavailable."
-                        ).formatted(Formatting.RED),
+                        ).withStyle(ChatFormatting.RED),
                     false
                 );
             return 0;
@@ -108,8 +108,8 @@ public class PayCommand {
                 otherProfile = context
                     .getSource()
                     .getServer()
-                    .getUserCache()
-                    .findByName(recipientInput)
+                    .getProfileCache()
+                    .get(recipientInput)
                     .orElse(null);
             } catch (Exception e) {
                 otherProfile = null;
@@ -118,11 +118,11 @@ public class PayCommand {
             if (otherProfile == null) {
                 context
                     .getSource()
-                    .sendFeedback(
+                    .sendSuccess(
                         () ->
-                            Text.literal(
+                            Component.literal(
                                 "User not found and not a valid address."
-                            ).formatted(Formatting.RED),
+                            ).withStyle(ChatFormatting.RED),
                         false
                     );
                 return 0;
@@ -134,11 +134,11 @@ public class PayCommand {
             if (otherWallet == null) {
                 context
                     .getSource()
-                    .sendFeedback(
+                    .sendSuccess(
                         () ->
-                            Text.literal(
+                            Component.literal(
                                 "Other user does not have a wallet. They haven't joined recently."
-                            ).formatted(Formatting.RED),
+                            ).withStyle(ChatFormatting.RED),
                         false
                     );
                 return 0;
@@ -152,18 +152,18 @@ public class PayCommand {
         float rawAmount = FloatArgumentType.getFloat(context, "amount");
         float amount = Math.round(rawAmount * 100f) / 100f;
         
-        ServerPlayerEntity thisPlayer = context.getSource().getPlayer();
+        ServerPlayer thisPlayer = context.getSource().getPlayer();
 
-        Wallet wallet = Kromer.database.getWallet(thisPlayer.getUuid());
+        Wallet wallet = Kromer.database.getWallet(thisPlayer.getUUID());
 
         if (wallet == null) {
             context
                 .getSource()
-                .sendFeedback(
+                .sendSuccess(
                     () ->
-                        Text.literal(
+                        Component.literal(
                             "You do not have a wallet. This should be impossible. Rejoin/contact a staff member."
-                        ).formatted(Formatting.RED),
+                        ).withStyle(ChatFormatting.RED),
                     false
                 );
             return 0;
@@ -171,8 +171,8 @@ public class PayCommand {
 
         Map<String, Object> data = new HashMap<>();
         data.put("return", wallet.address);
-        data.put("username", thisPlayer.getEntityName());
-        data.put("useruuid", thisPlayer.getUuid());
+        data.put("username", thisPlayer.getScoreboardName());
+        data.put("useruuid", thisPlayer.getUUID());
         String metadata = toSemicolonString(data);
 
         if (context.getNodes().size() > 3) {
@@ -186,23 +186,23 @@ public class PayCommand {
         payment.metadata = metadata;
         payment.createdAt = System.currentTimeMillis();
 
-        pendingPayments.put(thisPlayer.getUuid(), payment);
+        pendingPayments.put(thisPlayer.getUUID(), payment);
 
         String finalRecipientName = recipientName;
-        Text confirmButton = Text.literal("[Confirm]").styled(style ->
+        Component confirmButton = Component.literal("[Confirm]").withStyle(style ->
             style
-                .withColor(Formatting.GREEN)
+                .withColor(ChatFormatting.GREEN)
                 .withBold(true)
                 .withClickEvent(
-                    new net.minecraft.text.ClickEvent(
-                        net.minecraft.text.ClickEvent.Action.RUN_COMMAND,
+                    new net.minecraft.network.chat.ClickEvent(
+                        net.minecraft.network.chat.ClickEvent.Action.RUN_COMMAND,
                         "/confirm_pay"
                     )
                 )
                 .withHoverEvent(
-                    new net.minecraft.text.HoverEvent(
-                        net.minecraft.text.HoverEvent.Action.SHOW_TEXT,
-                        Text.literal(
+                    new net.minecraft.network.chat.HoverEvent(
+                        net.minecraft.network.chat.HoverEvent.Action.SHOW_TEXT,
+                        Component.literal(
                             "Click to confirm payment of " +
                             amount +
                             "KRO to " +
@@ -214,53 +214,53 @@ public class PayCommand {
 
         context
             .getSource()
-            .sendFeedback(
+            .sendSuccess(
                 () ->
-                    Text.literal("Are you sure you want to send ")
-                        .formatted(Formatting.GREEN)
+                    Component.literal("Are you sure you want to send ")
+                        .withStyle(ChatFormatting.GREEN)
                         .append(
-                            Text.literal(amount + "KRO ").formatted(
-                                Formatting.DARK_GREEN
+                            Component.literal(amount + "KRO ").withStyle(
+                                ChatFormatting.DARK_GREEN
                             )
                         )
-                        .append(Text.literal("to ").formatted(Formatting.GREEN))
+                        .append(Component.literal("to ").withStyle(ChatFormatting.GREEN))
                         .append(
-                            Text.literal(finalRecipientName).formatted(
-                                Formatting.DARK_GREEN
+                            Component.literal(finalRecipientName).withStyle(
+                                ChatFormatting.DARK_GREEN
                             )
                         )
-                        .append(Text.literal("? ").formatted(Formatting.GREEN))
+                        .append(Component.literal("? ").withStyle(ChatFormatting.GREEN))
                         .append(confirmButton),
                 false
             );
         return 1;
     }
-    private static int confirmPay(CommandContext<ServerCommandSource> context) {
+    private static int confirmPay(CommandContext<CommandSourceStack> context) {
         PendingPayment payment;
-        ServerPlayerEntity player;
+        ServerPlayer player;
         try {
             player = Objects.requireNonNull(context.getSource().getPlayer());
-            payment = pendingPayments.remove(player.getUuid());
+            payment = pendingPayments.remove(player.getUUID());
         } catch (NullPointerException e) {
-            context.getSource().sendFeedback(
-                    () -> Text.literal("You must be online to use this command.")
-                            .formatted(Formatting.RED),
+            context.getSource().sendSuccess(
+                    () -> Component.literal("You must be online to use this command.")
+                            .withStyle(ChatFormatting.RED),
                     false
             );
             return 0;
         }
 
         if (payment == null) {
-            context.getSource().sendFeedback(
+            context.getSource().sendSuccess(
                     () -> Locale.use(Locale.Messages.NO_PENDING),
                     false
             );
             return 0;
         }
 
-        Wallet wallet = Kromer.database.getWallet(player.getUuid());
+        Wallet wallet = Kromer.database.getWallet(player.getUUID());
         if (wallet == null) {
-            context.getSource().sendFeedback(
+            context.getSource().sendSuccess(
                     () -> Locale.use(Locale.Messages.NO_WALLET),
                     false
             );
@@ -273,7 +273,7 @@ public class PayCommand {
                 .whenComplete((result, ex) -> {
                     context.getSource().getServer().execute(() -> {
                         if (ex != null) {
-                            context.getSource().sendFeedback(
+                            context.getSource().sendSuccess(
                                     () -> Locale.use(Locale.Messages.ERROR, ex.getMessage()),
                                     false
                             );
@@ -281,12 +281,12 @@ public class PayCommand {
                         }
                         switch (result) {
                             case Result.Ok<MakeTransaction.MakeTransactionResponse> ok ->
-                                    context.getSource().sendFeedback(
+                                    context.getSource().sendSuccess(
                                             () -> Locale.use(Locale.Messages.PAYMENT_CONFIRMED, payment.amount, payment.to),
                                             false
                                     );
                             case Result.Err<MakeTransaction.MakeTransactionResponse> err ->
-                                    context.getSource().sendFeedback(
+                                    context.getSource().sendSuccess(
                                             () -> Locale.use(Locale.Messages.ERROR, err.error()),
                                             false
                                     );
