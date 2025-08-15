@@ -1,4 +1,4 @@
-package cc.reconnected.kromer;
+package cc.reconnected.kromer.common;
 
 import com.google.gson.Gson;
 

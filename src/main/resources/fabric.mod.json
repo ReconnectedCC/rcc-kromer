@@ -27,7 +27,6 @@
   "depends": {
     "fabricloader": ">=${loader_version}",
     "fabric": "*",
-    "luckperms": "*",
     "minecraft": "${minecraft_version}"
   }
 }
