@@ -14,6 +14,7 @@ public class CommonMetaParser {
 
         public ParseResult() {
             this.pairs = new HashMap<>();
+            this.success = true;
         }
 
         public ParseResult(Map<String, String> pairs, boolean success, String error) {
@@ -23,21 +24,18 @@ public class CommonMetaParser {
         }
     }
 
-    // Hand-written parser matching your grammar
     private static ParseResult parseInternal(String input) {
         ParseResult result = new ParseResult();
-        result.success = true;
 
-        int i = 0;
+        if (input == null || input.isEmpty()) return result;
+
         int len = input.length();
+        int[] iArr = {0};
+        int iterations = 0;
+        int maxIterations = len * 10;
 
-        // Helper to skip whitespace
-        Runnable skipWS;
-
-        // Wrap i in array so lambdas can modify it
-        final int[] iArr = { 0 };
-        skipWS = () -> {
-            while (iArr[0] < len && (input.charAt(iArr[0]) == ' ' || input.charAt(iArr[0]) == '\t')) {
+        Runnable skipWS = () -> {
+            while (iArr[0] < len && (input.charAt(iArr[0]) == ' ' || input.charAt(iArr[0]) == '\t' || input.charAt(iArr[0]) == '\n' || input.charAt(iArr[0]) == '\r')) {
                 iArr[0]++;
             }
         };
@@ -46,55 +44,49 @@ public class CommonMetaParser {
 
         try {
             while (iArr[0] < len) {
-                // semicolons can appear anywhere
-                if (input.charAt(iArr[0]) == ';') {
-                    iArr[0]++;
-                    skipWS.run();
-                    continue;
+                if (++iterations > maxIterations) {
+                    result.success = false;
+                    result.error = "Maximum iterations exceeded (possible infinite loop)";
+                    break;
                 }
 
-                // parse key
-                int startKey = iArr[0];
                 while (iArr[0] < len) {
                     char c = input.charAt(iArr[0]);
-                    if (Character.isLetterOrDigit(c) || c == '_' || c == '.' || c == '-' || c == '@') {
+                    if (c == ' ' || c == '\t' || c == '\n' || c == '\r' || c == ';') {
                         iArr[0]++;
                     } else {
                         break;
                     }
                 }
-                if (startKey == iArr[0]) {
-                    throw new RuntimeException("Expected key at position " + iArr[0]);
-                }
-                String key = input.substring(startKey, iArr[0]);
+                if (iArr[0] >= len) break;
 
-                skipWS.run();
+                int startKey = iArr[0];
+                while (iArr[0] < len) {
+                    char c = input.charAt(iArr[0]);
+                    if (c == '=' || c == ';' || c == '\n' || c == '\r') break; // separators stop the key
+                    iArr[0]++;
+                }
+                String key = input.substring(startKey, iArr[0]).trim();
+
+                if (key.isEmpty()) {
+                    iArr[0]++;
+                    continue;
+                }
 
                 String value = "";
                 if (iArr[0] < len && input.charAt(iArr[0]) == '=') {
-                    iArr[0]++; // skip '='
-                    skipWS.run();
-
+                    iArr[0]++;
                     int startValue = iArr[0];
-                    while (iArr[0] < len) {
-                        char c = input.charAt(iArr[0]);
-                        if (c == ';' || c == '\n' || c == '\r') break;
+                    while (iArr[0] < len && input.charAt(iArr[0]) != ';' && input.charAt(iArr[0]) != '\n' && input.charAt(iArr[0]) != '\r') {
                         iArr[0]++;
                     }
                     value = input.substring(startValue, iArr[0]).trim();
                 }
 
                 result.pairs.put(key, value);
-
-                skipWS.run();
-
-                // optional semicolon before next pair
-                if (iArr[0] < len && input.charAt(iArr[0]) == ';') {
-                    iArr[0]++;
-                    skipWS.run();
-                }
             }
-        } catch (RuntimeException e) {
+
+        } catch (Exception e) {
             result.success = false;
             result.error = e.getMessage();
         }
@@ -102,7 +94,6 @@ public class CommonMetaParser {
         return result;
     }
 
-    // API methods
     public static ParseResult parseWithResult(String input) {
         return parseInternal(input);
     }
@@ -124,9 +115,8 @@ public class CommonMetaParser {
         return new Gson().toJson(parseInternal(input));
     }
 
-    // For quick manual testing
     public static void main(String[] args) {
-        String test = "name=John; email=john@example.com; flag";
+        String test = ";;name=John; email=john@example.com;;flag;;=bad;😀=fun;";
         System.out.println(toJson(test));
     }
 }
