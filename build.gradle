@@ -61,7 +61,7 @@ dependencies {
         parchment("org.parchmentmc.data:parchment-${project.minecraft_version}:${project.parchment_mappings}@zip")
     }
     modImplementation "net.fabricmc:fabric-loader:${project.loader_version}"
-    include implementation('org.flywaydb:flyway-core:10.14.0')
+    include implementation("org.flywaydb:flyway-core:${project.flyway_version}")
 
     modImplementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_version}"
     modImplementation "io.wispforest:owo-lib:${project.owo_version}"
@@ -76,7 +76,7 @@ dependencies {
     implementation "org.xerial:sqlite-jdbc:${project.sqlite_jdbc}"
     
     // START jKROMER
-    implementation include("ovh.sad:jkromer:0.9")
+    implementation include("ovh.sad:jkromer:${project.jkromer_version}")
 
     implementation "org.java-websocket:Java-WebSocket:${project.jws_version}"
     // END jKROMER
