@@ -65,9 +65,7 @@ dependencies {
 
     modImplementation "me.alexdevs:solstice:${project.solstice_version}"
     implementation "org.xerial:sqlite-jdbc:${project.sqlite_jdbc}"
-
-    implementation include("ovh.sad:commonmeta:0.2")
-
+    
     // START jKROMER
     implementation include("ovh.sad:jkromer:0.9")
 

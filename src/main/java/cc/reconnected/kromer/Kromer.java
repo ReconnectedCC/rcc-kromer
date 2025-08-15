@@ -39,7 +39,7 @@ import net.minecraft.util.Pair;
 import org.flywaydb.core.Flyway;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import ovh.sad.commonmeta.CommonMetaParser;
+import cc.reconnected.kromer.CommonMetaParser;
 import ovh.sad.jkromer.Errors;
 import ovh.sad.jkromer.http.Result;
 import ovh.sad.jkromer.http.internal.CreateWallet;
