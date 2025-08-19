@@ -128,6 +128,8 @@ public class Kromer implements DedicatedServerModInitializer {
         ServerPlayConnectionEvents.JOIN.register((a, b, c) -> {
             grantWallet(a.player.getScoreboardName(), a.player.getUUID(), a.player);
             checkTransfers(a.player);
+            float finalWelfare = calculateWelfare();
+            executeWelfareForPlayer(a.player,finalWelfare);
         });
 
         CommandRegistrationCallback.EVENT.register(PayCommand::register);
@@ -160,65 +162,83 @@ public class Kromer implements DedicatedServerModInitializer {
         );
     }
 
-    public static void executeWelfare() {
+    private static float calculateWelfare(){
         List<ServerPlayer> playersWithSupporter = client.server
-            .getPlayerList()
-            .getPlayers()
-            .stream()
-            .filter(z -> Permissions.check(z, config.SupporterGroup()) && !Permissions.check(z, config.BotPermission()))
-            .toList();
+                .getPlayerList()
+                .getPlayers()
+                .stream()
+                .filter(z -> Permissions.check(z, config.SupporterGroup()) && !Permissions.check(z, config.BotPermission()))
+                .toList();
 
         List<ServerPlayer> playersWithoutSupporter = client.server
-            .getPlayerList()
-            .getPlayers()
-            .stream()
-            .filter(z -> !Permissions.check(z, config.SupporterGroup()) && !Permissions.check(z, config.BotPermission()))
-            .toList();
+                .getPlayerList()
+                .getPlayers()
+                .stream()
+                .filter(z -> !Permissions.check(z, config.SupporterGroup()) && !Permissions.check(z, config.BotPermission()))
+                .toList();
 
         float welfare = config.HourlyWelfare();
         if (
-            !playersWithSupporter.isEmpty() &&
-            !playersWithoutSupporter.isEmpty()
+                !playersWithSupporter.isEmpty() &&
+                        !playersWithoutSupporter.isEmpty()
         ) {
             welfare =
-                config.HourlyWelfare() *
-                (config.SupporterMultiplier() * playersWithSupporter.size());
+                    config.HourlyWelfare() *
+                            (config.SupporterMultiplier() * playersWithSupporter.size());
         }
+        return welfare;
+    }
 
-        float finalWelfare = Math.round(welfare * 100f) / 100f;
+    public static void executeWelfare() {
+
+        float finalWelfare = calculateWelfare();
 
         client.server
             .getPlayerList()
             .getPlayers()
             .forEach(p -> {
-                if(config.BotPermission() != null) {
-                    if(Permissions.check(p, config.BotPermission())) return; // If bot then bye
-                }
-
-                Wallet wallet = Kromer.database.getWallet(p.getUUID());
-                if (wallet == null) return;
-
-                if (
-                    Solstice.modules.getModule(AfkModule.class).get().isPlayerAfk(p)
-                ) return;
-                WelfareData welfareData = Solstice.playerData
-                        .get(p.getUUID())
-                        .getData(WelfareData.class);
-                if (
-                    !(welfareData.welfareMuted || welfareData.optedOut)
-                ) {
-                    p.sendSystemMessage(
-                        Locale.use(Locale.Messages.WELFARE_GIVEN, finalWelfare)
-                    );
-                }
-                if(!welfareData.optedOut) {
-                    CompletableFuture
-                            .supplyAsync(() -> GiveMoney.execute(config.KromerKey(), finalWelfare, wallet.address), NETWORK_EXECUTOR)
-                            .thenCompose(f -> f);
-                }
+               executeWelfareForPlayer(p,finalWelfare);
             });
     }
+    private static void executeWelfareForPlayer(ServerPlayer player, float baseWelfare) {
+        if (baseWelfare == 0) {
+            return;
+        }
+        if(config.BotPermission() != null) {
+            if(Permissions.check(player, config.BotPermission())) return; // If bot then bye
+        }
+        Wallet wallet = Kromer.database.getWallet(player.getUUID());
+        if (wallet == null) return;
 
+
+        WelfareData welfareData = Solstice.playerData
+                .get(player.getUUID())
+                .getData(WelfareData.class);
+        int interval = 3600; // one hour, in seconds, since rcc-kromer does hourly welfare.
+        AfkPlayerData solsticeData = Solstice.modules
+                .getModule(AfkModule.class)
+                .get()
+                .getPlayerData(player.getUUID());
+        int activeTime = solsticeData.activeTime;
+        var oldActiveTime = welfareData.oldActiveTime;
+        float deltaActiveTime = activeTime - oldActiveTime;
+        float relativeDeltaActiveTime = deltaActiveTime / interval; // make it 1 if equal to interval, or greater if they log off and rejoin mid-interval
+        float finalWelfare = Math.round((baseWelfare * relativeDeltaActiveTime)*100f)/100f;
+        if (finalWelfare == 0) return;
+        if (
+                !(welfareData.welfareMuted || welfareData.optedOut)
+        ) {
+            player.sendSystemMessage(
+                    Locale.use(Locale.Messages.WELFARE_GIVEN, finalWelfare)
+            );
+        }
+        if(!welfareData.optedOut) {
+            CompletableFuture
+                    .supplyAsync(() -> GiveMoney.execute(config.KromerKey(), finalWelfare, wallet.address), NETWORK_EXECUTOR)
+                    .thenCompose(f -> f);
+        }
+        welfareData.oldActiveTime = activeTime;
+    }
     public static String getNameFromWallet(String address) {
         String userName = address; // if from is
         Tuple<UUID, Wallet> fromWallet = database.getWallet(userName);
@@ -375,6 +395,10 @@ public class Kromer implements DedicatedServerModInitializer {
                                         if (ex2 != null) {
                                             LOGGER.error("Failed to give retroactive kro to " + name, ex2);
                                         }
+                                        WelfareData welfareData = Solstice.playerData
+                                                .get(player.getUUID())
+                                                .getData(WelfareData.class);
+                                        welfareData.oldActiveTime = solsticeData.activeTime; // Prevent double retroactive kromer.
                                     });
                         }
                     } else if (createWalletResult instanceof Result.Err<CreateWallet.CreateWalletResponse> err) {

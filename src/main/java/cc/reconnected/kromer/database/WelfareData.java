@@ -9,4 +9,6 @@ public class WelfareData {
 
     @Expose
     public boolean optedOut = false;
+
+    public int oldActiveTime = 0;
 }
