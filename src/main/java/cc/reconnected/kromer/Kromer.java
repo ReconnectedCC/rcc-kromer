@@ -180,11 +180,11 @@ public class Kromer implements DedicatedServerModInitializer {
         float welfare = config.HourlyWelfare();
         if (
                 !playersWithSupporter.isEmpty() &&
-                        !playersWithoutSupporter.isEmpty()
+                !playersWithoutSupporter.isEmpty()
         ) {
             welfare =
                     config.HourlyWelfare() *
-                            (config.SupporterMultiplier() * playersWithSupporter.size());
+                    (config.SupporterMultiplier() * playersWithSupporter.size());
         }
         return welfare;
     }
