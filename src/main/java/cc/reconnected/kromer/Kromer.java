@@ -349,15 +349,21 @@ public class Kromer implements DedicatedServerModInitializer {
         UUID uuid,
         ServerPlayer player
     ) {
+        AfkPlayerData solsticeData = Solstice.modules
+                .getModule(AfkModule.class)
+                .get()
+                .getPlayerData(uuid);
+        WelfareData welfareData = Solstice.playerData
+                .get(player.getUUID())
+                .getData(WelfareData.class);
+        if (welfareData.oldActiveTime == 0) {
+            welfareData.oldActiveTime = solsticeData.activeTime; // Prevent double retroactive kromer.
+        }
         if (database.getWallet(uuid) != null) {
             return;
         }
 
         // Retroactive KRO giving
-        AfkPlayerData solsticeData = Solstice.modules
-            .getModule(AfkModule.class)
-                .get()
-            .getPlayerData(uuid);
         float kroAmountRaw = (float) (((double) solsticeData.activeTime /
                 3600) *
                 config.HourlyWelfare());
@@ -395,10 +401,7 @@ public class Kromer implements DedicatedServerModInitializer {
                                         if (ex2 != null) {
                                             LOGGER.error("Failed to give retroactive kro to " + name, ex2);
                                         }
-                                        WelfareData welfareData = Solstice.playerData
-                                                .get(player.getUUID())
-                                                .getData(WelfareData.class);
-                                        welfareData.oldActiveTime = solsticeData.activeTime; // Prevent double retroactive kromer.
+
                                     });
                         }
                     } else if (createWalletResult instanceof Result.Err<CreateWallet.CreateWalletResponse> err) {
