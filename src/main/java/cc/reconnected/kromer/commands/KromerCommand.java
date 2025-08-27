@@ -56,12 +56,19 @@ public class KromerCommand {
                             );
                             return;
                         }
-                        switch (b) {
-                            case Result.Ok<GetMotd.GetMotdBody> ok -> context.getSource().getServer().execute(() ->
-                                    context.getSource().sendSuccess(() -> Locale.use(Locale.Messages.VERSION, modVersion, ok.value().motdPackage.version), false)
+                        if (b instanceof Result.Ok<GetMotd.GetMotdBody> ok) {
+                            context.getSource().getServer().execute(() ->
+                                    context.getSource().sendSuccess(
+                                            () -> Locale.use(Locale.Messages.VERSION, modVersion, ok.value().motdPackage.version),
+                                            false
+                                    )
                             );
-                            case Result.Err<GetMotd.GetMotdBody> err -> context.getSource().getServer().execute(() ->
-                                    context.getSource().sendSuccess(() -> Locale.use(Locale.Messages.ERROR, err.error()), false)
+                        } else if (b instanceof Result.Err<GetMotd.GetMotdBody> err) {
+                            context.getSource().getServer().execute(() ->
+                                    context.getSource().sendSuccess(
+                                            () -> Locale.use(Locale.Messages.ERROR, err.error()),
+                                            false
+                                    )
                             );
                         }
                     });
@@ -112,15 +119,20 @@ public class KromerCommand {
                                                     );
                                                     return;
                                                 }
-                                                switch (b) {
-                                                    case Result.Ok<GiveMoney.GiveMoneyResponse> ok ->
-                                                            context.getSource().getServer().execute(() ->
-                                                                    context.getSource().sendSuccess(() -> Locale.use(Locale.Messages.ADDED_KRO, amount, player.getScoreboardName()), false)
-                                                            );
-                                                    case Result.Err<GiveMoney.GiveMoneyResponse> err ->
-                                                            context.getSource().getServer().execute(() ->
-                                                                    context.getSource().sendSuccess(() -> Locale.use(Locale.Messages.ERROR, err.error()), false)
-                                                            );
+                                                if (b instanceof Result.Ok<GiveMoney.GiveMoneyResponse> ok) {
+                                                    context.getSource().getServer().execute(() ->
+                                                            context.getSource().sendSuccess(
+                                                                    () -> Locale.use(Locale.Messages.ADDED_KRO, amount, player.getScoreboardName()),
+                                                                    false
+                                                            )
+                                                    );
+                                                } else if (b instanceof Result.Err<GiveMoney.GiveMoneyResponse> err) {
+                                                    context.getSource().getServer().execute(() ->
+                                                            context.getSource().sendSuccess(
+                                                                    () -> Locale.use(Locale.Messages.ERROR, err.error()),
+                                                                    false
+                                                            )
+                                                    );
                                                 }
                                             });
                                     return Command.SINGLE_SUCCESS;

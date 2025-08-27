@@ -68,7 +68,6 @@ public class TransactionsCommand {
         int offset = (page - 1) * 10;
         int finalPage = page;
 
-        // Run the network call asynchronously on NETWORK_EXECUTOR
         CompletableFuture
                 .supplyAsync(() -> GetAddressTransactions.execute(wallet.address, false, 10, offset), NETWORK_EXECUTOR)
                 .thenCompose(future -> future) // unwrap nested CompletableFuture<Result<...>>
@@ -79,48 +78,49 @@ public class TransactionsCommand {
                             return;
                         }
 
-                        switch (result) {
-                            case Result.Ok<GetAddressTransactions.GetAddressTransactionsBody> ok -> {
-                                var responseObj = ok.value();
+                        if (result instanceof Result.Ok<GetAddressTransactions.GetAddressTransactionsBody> ok) {
+                            var responseObj = ok.value();
 
-                                source.sendSuccess(() -> Locale.use(Locale.Messages.TRANSACTIONS_INFO, player.getScoreboardName(), finalPage), false);
+                            source.sendSuccess(() -> Locale.use(Locale.Messages.TRANSACTIONS_INFO, player.getScoreboardName(), finalPage), false);
 
-                                if (responseObj.transactions == null || responseObj.transactions.isEmpty()) {
-                                    source.sendSuccess(() -> Locale.use(Locale.Messages.TRANSACTIONS_EMPTY), false);
-                                    return;
-                                }
-
-                                final SimpleDateFormat f = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
-                                f.setTimeZone(TimeZone.getTimeZone("UTC"));
-
-                                for (var transaction : responseObj.transactions) {source.sendSuccess(() -> Locale.useSafe(Messages.TRANSACTION,
-                                            Objects.equals(transaction.type, "transfer") ? "<aqua>" : "<gold>",
-                                            f.format(transaction.time), // Always UTC
-                                            transaction.id,
-                                            transaction.from,
-                                            transaction.to,
-                                            transaction.value,
-                                            transaction.metadata), false);
-                                }
-
-                                boolean hasNextPage = responseObj.transactions.size() >= 10;
-                                boolean hasPreviousPage = finalPage > 1;
-                                StringBuilder nav = new StringBuilder("<green>Navigation: ");
-                                if (hasPreviousPage) {
-                                    nav.append("<run_cmd:'/transactions ")
-                                            .append(finalPage - 1)
-                                            .append("'><aqua>[Prev. Page]</aqua></run_cmd> ");
-                                }
-                                if (hasNextPage) {
-                                    nav.append("<run_cmd:'/transactions ")
-                                            .append(finalPage + 1)
-                                            .append("'><aqua>[Next Page]</aqua></run_cmd>");
-                                }
-                                source.sendSuccess(() -> TextParserUtils.formatText(nav.toString()), false);
+                            if (responseObj.transactions == null || responseObj.transactions.isEmpty()) {
+                                source.sendSuccess(() -> Locale.use(Locale.Messages.TRANSACTIONS_EMPTY), false);
+                                return;
                             }
-                            case Result.Err<GetAddressTransactions.GetAddressTransactionsBody> err -> {
-                                source.sendSuccess(() -> Locale.use(Locale.Messages.ERROR, err.error()), false);
+
+                            final SimpleDateFormat f = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
+                            f.setTimeZone(TimeZone.getTimeZone("UTC"));
+
+                            for (var transaction : responseObj.transactions) {
+                                source.sendSuccess(() -> Locale.useSafe(
+                                        Messages.TRANSACTION,
+                                        Objects.equals(transaction.type, "transfer") ? "<aqua>" : "<gold>",
+                                        f.format(transaction.time), // Always UTC
+                                        transaction.id,
+                                        transaction.from,
+                                        transaction.to,
+                                        transaction.value,
+                                        transaction.metadata
+                                ), false);
                             }
+
+                            boolean hasNextPage = responseObj.transactions.size() >= 10;
+                            boolean hasPreviousPage = finalPage > 1;
+                            StringBuilder nav = new StringBuilder("<green>Navigation: ");
+                            if (hasPreviousPage) {
+                                nav.append("<run_cmd:'/transactions ")
+                                        .append(finalPage - 1)
+                                        .append("'><aqua>[Prev. Page]</aqua></run_cmd> ");
+                            }
+                            if (hasNextPage) {
+                                nav.append("<run_cmd:'/transactions ")
+                                        .append(finalPage + 1)
+                                        .append("'><aqua>[Next Page]</aqua></run_cmd>");
+                            }
+                            source.sendSuccess(() -> TextParserUtils.formatText(nav.toString()), false);
+
+                        } else if (result instanceof Result.Err<GetAddressTransactions.GetAddressTransactionsBody> err) {
+                            source.sendSuccess(() -> Locale.use(Locale.Messages.ERROR, err.error()), false);
                         }
                     });
                 });

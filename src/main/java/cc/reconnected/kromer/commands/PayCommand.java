@@ -279,17 +279,16 @@ public class PayCommand {
                             );
                             return;
                         }
-                        switch (result) {
-                            case Result.Ok<MakeTransaction.MakeTransactionResponse> ok ->
-                                    context.getSource().sendSuccess(
-                                            () -> Locale.use(Locale.Messages.PAYMENT_CONFIRMED, payment.amount, payment.to),
-                                            false
-                                    );
-                            case Result.Err<MakeTransaction.MakeTransactionResponse> err ->
-                                    context.getSource().sendSuccess(
-                                            () -> Locale.use(Locale.Messages.ERROR, err.error()),
-                                            false
-                                    );
+                        if (result instanceof Result.Ok<MakeTransaction.MakeTransactionResponse> ok) {
+                            context.getSource().sendSuccess(
+                                    () -> Locale.use(Locale.Messages.PAYMENT_CONFIRMED, payment.amount, payment.to),
+                                    false
+                            );
+                        } else if (result instanceof Result.Err<MakeTransaction.MakeTransactionResponse> err) {
+                            context.getSource().sendSuccess(
+                                    () -> Locale.use(Locale.Messages.ERROR, err.error()),
+                                    false
+                            );
                         }
                     });
                 });

@@ -66,39 +66,35 @@ public class Kromer implements DedicatedServerModInitializer {
                 .supplyAsync(StartWs::execute, NETWORK_EXECUTOR)
                 .thenCompose(f -> f)
                 .whenComplete((b, ex) -> {
-                    switch (b) {
-                        case Result.Ok<StartWs.StartWsResponse> ok -> {
-                            LOGGER.debug("Websocket URL found: {}", ok.value().url);
+                    if (b instanceof Result.Ok<StartWs.StartWsResponse> ok) {
+                        LOGGER.debug("Websocket URL found: {}", ok.value().url);
 
-                            try {
-                                client = new KromerWebsockets(new URI(ok.value().url), server);
-                            } catch (URISyntaxException e) {
-                                throw new RuntimeException(e);
-                            }
-
-                            client.connect();
-
-                            LOGGER.debug("Websocket connected.");
+                        try {
+                            client = new KromerWebsockets(new URI(ok.value().url), server);
+                        } catch (URISyntaxException e) {
+                            throw new RuntimeException(e);
                         }
-                        case Result.Err<StartWs.StartWsResponse> err -> {
-                            LOGGER.debug(
-                                    "Websocket URL was not found. Retrying in 1 second."
-                            );
 
-                            new Timer("WebSocket-Retry", true).schedule(
-                                    new TimerTask() {
-                                        @Override
-                                        public void run() {
-                                            try {
-                                                connectWebsocket(server);
-                                            } catch (URISyntaxException ex) {
-                                                throw new RuntimeException(ex);
-                                            }
+                        client.connect();
+
+                        LOGGER.debug("Websocket connected.");
+                    } else if (b instanceof Result.Err) {
+
+                        LOGGER.debug("Websocket URL was not found. Retrying in 1 second.");
+
+                        new Timer("WebSocket-Retry", true).schedule(
+                                new TimerTask() {
+                                    @Override
+                                    public void run() {
+                                        try {
+                                            connectWebsocket(server);
+                                        } catch (URISyntaxException ex2) {
+                                            throw new RuntimeException(ex2);
                                         }
-                                        },
-                                    1000
-                            );
-                        }
+                                    }
+                                },
+                                1000
+                        );
                     }
                 });
     }

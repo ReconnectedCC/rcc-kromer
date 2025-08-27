@@ -32,9 +32,9 @@ public class mainClient implements ClientModInitializer {
                             .whenComplete((b, ex) -> {
                                 if (ex != null) return;
 
-                                if (b instanceof Result.Ok(GetPlayerByName.GetPlayerByResponse value)) {
-                                    if (!value.data.isEmpty()) {
-                                        balance[0] = value.data.get(0).balance;
+                                if (b instanceof Result.Ok<GetPlayerByName.GetPlayerByResponse> value) {
+                                    if (!value.value().data.isEmpty()) {
+                                        balance[0] = value.value().data.get(0).balance;
                                     }
                                 }
                             });

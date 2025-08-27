@@ -70,15 +70,21 @@ public class BalanceCommand {
                         );
                         return;
                     }
-                    switch (b) {
-                        case Result.Ok<GetAddress.GetAddressBody> ok ->
-                                source.getServer().execute(() ->
-                                        source.sendSuccess(() -> Locale.use(Locale.Messages.BALANCE, ok.value().address.balance), false)
-                                );
-                        case Result.Err<GetAddress.GetAddressBody> err ->
-                                source.getServer().execute(() ->
-                                        source.sendSuccess(() -> Locale.use(Locale.Messages.ERROR, err.error()), false)
-                                );
+
+                    if (b instanceof Result.Ok<GetAddress.GetAddressBody> ok) {
+                        source.getServer().execute(() ->
+                                source.sendSuccess(
+                                        () -> Locale.use(Locale.Messages.BALANCE, ok.value().address.balance),
+                                        false
+                                )
+                        );
+                    } else if (b instanceof Result.Err<GetAddress.GetAddressBody> err) {
+                        source.getServer().execute(() ->
+                                source.sendSuccess(
+                                        () -> Locale.use(Locale.Messages.ERROR, err.error()),
+                                        false
+                                )
+                        );
                     }
                 });
         return 1;
