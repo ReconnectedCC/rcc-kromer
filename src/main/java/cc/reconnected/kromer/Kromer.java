@@ -10,6 +10,9 @@
 
 package cc.reconnected.kromer;
 
+import cc.reconnected.kromer.arguments.AddressArgumentType;
+import cc.reconnected.kromer.arguments.KromerArgumentInfo;
+import cc.reconnected.kromer.arguments.KromerArgumentType;
 import cc.reconnected.kromer.commands.BalanceCommand;
 import cc.reconnected.kromer.commands.KromerCommand;
 import cc.reconnected.kromer.commands.PayCommand;
@@ -30,9 +33,12 @@ import me.alexdevs.solstice.modules.afk.AfkModule;
 import me.alexdevs.solstice.modules.afk.data.AfkPlayerData;
 import me.lucko.fabric.api.permissions.v0.Permissions;
 import net.fabricmc.api.DedicatedServerModInitializer;
+import net.fabricmc.fabric.api.command.v2.ArgumentTypeRegistry;
 import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents;
+import net.minecraft.commands.synchronization.SingletonArgumentInfo;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.util.Tuple;
@@ -100,6 +106,8 @@ public class Kromer implements DedicatedServerModInitializer {
     }
 
     public void onInitializeServer() {
+        ArgumentTypeRegistry.registerArgumentType(new ResourceLocation("rcc-kromer", "kromer_amount"), KromerArgumentType.class, new KromerArgumentInfo());
+        ArgumentTypeRegistry.registerArgumentType(new ResourceLocation("rcc-kromer","kromer_address"), AddressArgumentType.class, SingletonArgumentInfo.contextFree(AddressArgumentType::address));
         Flyway flyway = Flyway.configure()
                 .dataSource("jdbc:sqlite:rcc-kromer.sqlite", null, null)
                 .baselineOnMigrate(true)
@@ -116,12 +124,16 @@ public class Kromer implements DedicatedServerModInitializer {
         ServerLifecycleEvents.SERVER_STARTED.register(server -> {
             try {
                 connectWebsocket(server);
-            } catch (java.net.URISyntaxException u) {
+            } catch (URISyntaxException u) {
                 u.printStackTrace();
             }
         });
 
         ServerPlayConnectionEvents.JOIN.register((a, b, c) -> {
+            if (client == null) {
+                LOGGER.error("Websocket client is null, cannot grant wallet nor calculate welfare.");
+                return;
+            };
             grantWallet(a.player.getScoreboardName(), a.player.getUUID(), a.player);
             checkTransfers(a.player);
             float finalWelfare = calculateWelfare();
@@ -159,6 +171,10 @@ public class Kromer implements DedicatedServerModInitializer {
     }
 
     private static float calculateWelfare(){
+        if (client == null) {
+            LOGGER.error("Websocket client is null, cannot calculate welfare.");
+            return 0;
+        }
         List<ServerPlayer> playersWithSupporter = client.server
                 .getPlayerList()
                 .getPlayers()
@@ -186,7 +202,10 @@ public class Kromer implements DedicatedServerModInitializer {
     }
 
     public static void executeWelfare() {
-
+        if (client == null) {
+            LOGGER.error("Websocket client is null, cannot execute welfare.");
+            return;
+        }
         float finalWelfare = calculateWelfare();
 
         client.server
