@@ -6,6 +6,7 @@ import static net.minecraft.commands.Commands.literal;
 
 import cc.reconnected.kromer.Kromer;
 import cc.reconnected.kromer.Locale;
+import cc.reconnected.kromer.arguments.KromerArgumentType;
 import cc.reconnected.kromer.database.Wallet;
 import cc.reconnected.kromer.database.WelfareData;
 import com.mojang.brigadier.Command;
@@ -103,13 +104,13 @@ public class KromerCommand {
 
         var setMoneyCommand = literal("addMoney").then(
                 argument("player", EntityArgument.player()).then(
-                        argument("amount", FloatArgumentType.floatArg())
+                        argument("amount", KromerArgumentType.kromerArg())
                                 .executes(context -> {
                                     ServerPlayer player = EntityArgument.getPlayer(context, "player");
-                                    var amount = FloatArgumentType.getFloat(context, "amount");
+                                    var amount = KromerArgumentType.getBigDecimal(context, "amount");
 
                                     CompletableFuture
-                                            .supplyAsync(() -> GiveMoney.execute(Kromer.config.internal_key, amount,
+                                            .supplyAsync(() -> GiveMoney.execute(Kromer.config.internal_key, amount.floatValue(),
                                                     Kromer.database.getWallet(player.getUUID()).address), NETWORK_EXECUTOR)
                                             .thenCompose(f -> f)
                                             .whenComplete((b, ex) -> {

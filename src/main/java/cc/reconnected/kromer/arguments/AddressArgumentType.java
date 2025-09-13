@@ -11,12 +11,13 @@ import java.util.Arrays;
 import java.util.Collection;
 
 public class AddressArgumentType implements ArgumentType<String> {
-    private static final Collection<String> EXAMPLES = Arrays.asList("kr0merwelf", "reconnected.kro", "meta@reconnected.kro");
+    private static final Collection<String> EXAMPLES = Arrays.asList("kr0merwelf", "reconnected.kro", "meta@reconnected.kro", "hartbreix", "g6ys", "Dimaguy", "EmmaKnijn");
     public static boolean isAllowed(final char c) {
         return c >= '0' && c <= '9'
                 || c >= 'A' && c <= 'Z'
                 || c >= 'a' && c <= 'z'
-                || c == '@' || c == '.';
+                || c == '@' || c == '.'
+                || c == '_';
     }
     @Override
     public String parse(StringReader reader) throws CommandSyntaxException {
@@ -38,9 +39,9 @@ public class AddressArgumentType implements ArgumentType<String> {
             reader.skip();
         }
         String result = reader.getString().substring(start, reader.getCursor());
-        if (!(result.matches("^k[a-z0-9]{9}$") || result.matches("^(?:([a-z0-9-_]{1,32})@)?([a-z0-9]{1,64})\\.kro$"))) {
-            throw new SimpleCommandExceptionType(new LiteralMessage("Not a valid address or (meta)name")).createWithContext(reader);
-        }
+        //if (!(result.matches("^k[a-z0-9]{9}$") || result.matches("^(?:([a-z0-9-_]{1,32})@)?([a-z0-9]{1,64})\\.kro$"))) {
+        //    throw new SimpleCommandExceptionType(new LiteralMessage("Not a valid address or (meta)name")).createWithContext(reader);
+        //}
         return result;
     }
 

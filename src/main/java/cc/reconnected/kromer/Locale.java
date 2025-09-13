@@ -14,6 +14,8 @@ public class Locale {
             "<red>You do not have a wallet. This should be impossible. Rejoin/contact a staff member."
         ),
         BALANCE("<green>Your balance is: <dark_green>%.2fKRO."),
+        BALANCE_OTHERS("<green>%s's balance is: <dark_green>%.2fKRO."),
+
         VERSION(
             "<yellow>Fabric version: <gold>%s</gold>, server version: <gold>%s</gold>"
         ),

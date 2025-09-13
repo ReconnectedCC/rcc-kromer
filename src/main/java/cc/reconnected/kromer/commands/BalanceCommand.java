@@ -1,21 +1,29 @@
 package cc.reconnected.kromer.commands;
 
 import static cc.reconnected.kromer.Kromer.NETWORK_EXECUTOR;
+import static net.minecraft.commands.Commands.argument;
 import static net.minecraft.commands.Commands.literal;
 
 import cc.reconnected.kromer.Kromer;
 import cc.reconnected.kromer.Locale;
+import cc.reconnected.kromer.arguments.AddressArgumentType;
+import cc.reconnected.kromer.arguments.KromerArgumentType;
 import cc.reconnected.kromer.database.Wallet;
+import com.mojang.authlib.GameProfile;
 import com.mojang.brigadier.CommandDispatcher;
 import com.mojang.brigadier.context.CommandContext;
+import net.minecraft.ChatFormatting;
+import net.minecraft.network.chat.Component;
 import ovh.sad.jkromer.http.Result;
 import ovh.sad.jkromer.http.addresses.GetAddress;
 
+import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 import net.minecraft.commands.CommandBuildContext;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
 import net.minecraft.server.level.ServerPlayer;
+import ovh.sad.jkromer.models.Address;
 
 public class BalanceCommand {
 
@@ -25,19 +33,78 @@ public class BalanceCommand {
         Commands.CommandSelection environment
     ) {
         dispatcher.register(
-            literal("balance").executes(BalanceCommand::runBalance)
+            literal("balance").then(
+                    argument("recipient", AddressArgumentType.address()).executes(e -> runBalance(e, true))
+            ).executes(e -> runBalance(e, false))
         );
         dispatcher.register(
-            literal("bal").executes(BalanceCommand::runBalance)
+            literal("bal").then(
+                    argument("recipient", AddressArgumentType.address()).executes(e -> runBalance(e, true))
+            ).executes(e -> runBalance(e, false))
         );
     }
 
-    private static int runBalance(CommandContext<CommandSourceStack> context) {
+    private static int runBalance(CommandContext<CommandSourceStack> context, boolean hasRecipient) {
         var source = context.getSource();
         var player = source.getPlayer();
         assert player != null;
 
-        Wallet wallet = Kromer.database.getWallet(player.getUUID());
+        String kristAddress;
+
+        if(hasRecipient) {
+            String recipientInput = AddressArgumentType.getAddress(context, "recipient");
+
+            if (recipientInput.matches("^k[a-z0-9]{9}$") || recipientInput.matches("^(?:([a-z0-9-_]{1,32})@)?([a-z0-9]{1,64})\\.kro$")) {
+                kristAddress = recipientInput;
+            } else {
+                GameProfile otherProfile;
+                try {
+                    otherProfile = context
+                            .getSource()
+                            .getServer()
+                            .getProfileCache()
+                            .get(recipientInput)
+                            .orElse(null);
+                } catch (Exception e) {
+                    otherProfile = null;
+                }
+
+                if (otherProfile == null) {
+                    context
+                            .getSource()
+                            .sendSuccess(
+                                    () ->
+                                            Component.literal(
+                                                    "User not found and not a valid address."
+                                            ).withStyle(ChatFormatting.RED),
+                                    false
+                            );
+                    return 0;
+                }
+
+                Wallet otherWallet = Kromer.database.getWallet(
+                        otherProfile.getId()
+                );
+                if (otherWallet == null) {
+                    context
+                            .getSource()
+                            .sendSuccess(
+                                    () ->
+                                            Component.literal(
+                                                    "Other user does not have a wallet. They haven't joined recently."
+                                            ).withStyle(ChatFormatting.RED),
+                                    false
+                            );
+                    return 0;
+                }
+
+                kristAddress = otherWallet.address;
+            }
+        } else {
+            kristAddress = null;
+        }
+
+        Wallet myWallet = Kromer.database.getWallet(player.getUUID());
 
         if (!Kromer.kromerStatus) {
             context
@@ -49,7 +116,7 @@ public class BalanceCommand {
             return 0;
         }
 
-        if (wallet == null) {
+        if (myWallet == null) {
             context
                 .getSource()
                 .sendSuccess(
@@ -61,7 +128,7 @@ public class BalanceCommand {
 
         // Run network call off the main thread
         CompletableFuture
-                .supplyAsync(() -> GetAddress.execute(wallet.address), NETWORK_EXECUTOR)
+                .supplyAsync(() -> GetAddress.execute(kristAddress == null ? myWallet.address : kristAddress), NETWORK_EXECUTOR)
                 .thenCompose(future -> future) // because GetAddress.execute returns CompletableFuture<Result<...>>
                 .whenComplete((b, ex) -> {
                     if (ex != null) {
@@ -72,12 +139,21 @@ public class BalanceCommand {
                     }
 
                     if (b instanceof Result.Ok<GetAddress.GetAddressBody> ok) {
-                        source.getServer().execute(() ->
-                                source.sendSuccess(
-                                        () -> Locale.use(Locale.Messages.BALANCE, ok.value().address.balance),
-                                        false
-                                )
-                        );
+                        if(kristAddress == null) {
+                            source.getServer().execute(() ->
+                                    source.sendSuccess(
+                                            () -> Locale.use(Locale.Messages.BALANCE, ok.value().address.balance),
+                                            false
+                                    )
+                            );
+                        } else {
+                            source.getServer().execute(() ->
+                                    source.sendSuccess(
+                                            () -> Locale.use(Locale.Messages.BALANCE_OTHERS, kristAddress, ok.value().address.balance),
+                                            false
+                                    )
+                            );
+                        }
                     } else if (b instanceof Result.Err<GetAddress.GetAddressBody> err) {
                         source.getServer().execute(() ->
                                 source.sendSuccess(
