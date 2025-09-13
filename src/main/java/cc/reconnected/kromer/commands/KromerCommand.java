@@ -109,7 +109,7 @@ public class KromerCommand {
                                     var amount = FloatArgumentType.getFloat(context, "amount");
 
                                     CompletableFuture
-                                            .supplyAsync(() -> GiveMoney.execute(Kromer.config.KromerKey(), amount,
+                                            .supplyAsync(() -> GiveMoney.execute(Kromer.config.internal_key, amount,
                                                     Kromer.database.getWallet(player.getUUID()).address), NETWORK_EXECUTOR)
                                             .thenCompose(f -> f)
                                             .whenComplete((b, ex) -> {

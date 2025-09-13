@@ -21,6 +21,8 @@ import cc.reconnected.kromer.database.Database;
 import cc.reconnected.kromer.database.Wallet;
 import cc.reconnected.kromer.database.WelfareData;
 import com.mojang.authlib.GameProfile;
+
+import java.io.File;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.time.Duration;
@@ -28,6 +30,10 @@ import java.time.LocalDateTime;
 import java.util.*;
 import java.util.concurrent.*;
 
+import com.typesafe.config.ConfigBeanFactory;
+import com.typesafe.config.ConfigFactory;
+import com.typesafe.config.ConfigParseOptions;
+import com.typesafe.config.ConfigSyntax;
 import me.alexdevs.solstice.Solstice;
 import me.alexdevs.solstice.modules.afk.AfkModule;
 import me.alexdevs.solstice.modules.afk.data.AfkPlayerData;
@@ -37,6 +43,7 @@ import net.fabricmc.fabric.api.command.v2.ArgumentTypeRegistry;
 import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents;
+import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.commands.synchronization.SingletonArgumentInfo;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.MinecraftServer;
@@ -58,7 +65,7 @@ public class Kromer implements DedicatedServerModInitializer {
     public static Database database = new Database();
     public static final ExecutorService NETWORK_EXECUTOR = Executors.newCachedThreadPool();
 
-    public static cc.reconnected.kromer.RccKromerConfig config;
+    public static ConfigurationModel config;
     private static KromerWebsockets client;
 
     public static Boolean kromerStatus = false;
@@ -133,7 +140,7 @@ public class Kromer implements DedicatedServerModInitializer {
             if (client == null) {
                 LOGGER.error("Websocket client is null, cannot grant wallet nor calculate welfare.");
                 return;
-            };
+            }
             grantWallet(a.player.getScoreboardName(), a.player.getUUID(), a.player);
             checkTransfers(a.player);
             float finalWelfare = calculateWelfare();
@@ -147,8 +154,12 @@ public class Kromer implements DedicatedServerModInitializer {
             TransactionsCommand::register
         );
 
-        config = cc.reconnected.kromer.RccKromerConfig.createAndLoad();
-        jKromer.endpoint_raw = config.KromerURL();
+        config = ConfigBeanFactory.create(
+                ConfigFactory.parseFile(FabricLoader.getInstance().getConfigDir().resolve("rcc-kromer.hocon").toFile(), ConfigParseOptions.defaults().setSyntax(ConfigSyntax.CONF)),
+                ConfigurationModel.class
+        );
+
+        jKromer.endpoint_raw = config.url;
         jKromer.endpoint = jKromer.endpoint_raw + "/api/krist";
 
         ScheduledExecutorService scheduler =
@@ -179,24 +190,24 @@ public class Kromer implements DedicatedServerModInitializer {
                 .getPlayerList()
                 .getPlayers()
                 .stream()
-                .filter(z -> Permissions.check(z, config.SupporterGroup()) && !Permissions.check(z, config.BotPermission()))
+                .filter(z -> Permissions.check(z, config.supporter.group) && !Permissions.check(z, config.bot))
                 .toList();
 
         List<ServerPlayer> playersWithoutSupporter = client.server
                 .getPlayerList()
                 .getPlayers()
                 .stream()
-                .filter(z -> !Permissions.check(z, config.SupporterGroup()) && !Permissions.check(z, config.BotPermission()))
+                .filter(z -> !Permissions.check(z, config.supporter.group) && !Permissions.check(z, config.bot))
                 .toList();
 
-        float welfare = config.HourlyWelfare();
+        float welfare = config.welfare;
         if (
                 !playersWithSupporter.isEmpty() &&
                 !playersWithoutSupporter.isEmpty()
         ) {
             welfare =
-                    config.HourlyWelfare() *
-                    (config.SupporterMultiplier() * playersWithSupporter.size());
+                    config.welfare *
+                    (config.supporter.multiplier * playersWithSupporter.size());
         }
         return welfare;
     }
@@ -219,8 +230,8 @@ public class Kromer implements DedicatedServerModInitializer {
         if (baseWelfare == 0) {
             return;
         }
-        if(config.BotPermission() != null) {
-            if(Permissions.check(player, config.BotPermission())) return; // If bot then bye
+        if(config.bot != null) {
+            if(Permissions.check(player, config.bot)) return; // If bot then bye
         }
         Wallet wallet = Kromer.database.getWallet(player.getUUID());
         if (wallet == null) return;
@@ -249,7 +260,7 @@ public class Kromer implements DedicatedServerModInitializer {
         }
         if(!welfareData.optedOut) {
             CompletableFuture
-                    .supplyAsync(() -> GiveMoney.execute(config.KromerKey(), finalWelfare, wallet.address), NETWORK_EXECUTOR)
+                    .supplyAsync(() -> GiveMoney.execute(config.internal_key, finalWelfare, wallet.address), NETWORK_EXECUTOR)
                     .thenCompose(f -> f);
         }
         welfareData.oldActiveTime = activeTime;
@@ -288,7 +299,7 @@ public class Kromer implements DedicatedServerModInitializer {
                                 result.pairs.get("message")
                         )
                 );
-            } else { // Don't duplicate code here. However, I don't want to make a extra function, so be it.
+            } else { // Don't duplicate code here. However, I don't want to make an extra function, so be it.
                 player.sendSystemMessage(
                         Locale.use(
                                 Locale.Messages.NOTIFY_TRANSFER,
@@ -381,17 +392,17 @@ public class Kromer implements DedicatedServerModInitializer {
         // Retroactive KRO giving
         float kroAmountRaw = (float) (((double) solsticeData.activeTime /
                 3600) *
-                config.HourlyWelfare());
+                config.welfare);
         float kroAmount = Math.round(kroAmountRaw * 100f) / 100f;
 
-        if (kroAmount != 0 && player != null) {
+        if (kroAmount != 0) {
             player.sendSystemMessage(
                 Locale.use(Locale.Messages.RETROACTIVE, kroAmount)
             );
         }
 
         CompletableFuture
-                .supplyAsync(() -> CreateWallet.execute(config.KromerKey(), name, uuid.toString()), NETWORK_EXECUTOR)
+                .supplyAsync(() -> CreateWallet.execute(config.internal_key, name, uuid.toString()), NETWORK_EXECUTOR)
                 .thenCompose(f -> f)
                 .whenComplete((createWalletResult, ex) -> {
                     if (ex != null) {
@@ -410,7 +421,7 @@ public class Kromer implements DedicatedServerModInitializer {
 
                         if (kroAmount != 0) {
                             CompletableFuture
-                                    .supplyAsync(() -> GiveMoney.execute(config.KromerKey(), kroAmount, createWallet.value().address), NETWORK_EXECUTOR)
+                                    .supplyAsync(() -> GiveMoney.execute(config.internal_key, kroAmount, createWallet.value().address), NETWORK_EXECUTOR)
                                     .thenCompose(f -> f)
                                     .whenComplete((giveMoneyResult, ex2) -> {
                                         if (ex2 != null) {
