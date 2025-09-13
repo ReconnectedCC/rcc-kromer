@@ -16,6 +16,7 @@ import ovh.sad.jkromer.http.v1.GetPlayerByUuid;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 
 
 public class mainClient implements ClientModInitializer {
@@ -36,9 +37,12 @@ public class mainClient implements ClientModInitializer {
 
                     CompletableFuture
                             .supplyAsync(() -> GetPlayerByUuid.execute(mc.player.getStringUUID()), NETWORK_EXECUTOR)
+                            .orTimeout(1, TimeUnit.SECONDS)
                             .thenCompose(future -> future)
                             .whenComplete((b, ex) -> {
-                                if (ex != null) return;
+                                if (ex != null) {
+                                    balance[0] = -2;
+                                };
 
                                 if (b instanceof Result.Ok<GetPlayerByName.GetPlayerByResponse> value) {
                                     if (!value.value().data.isEmpty()) {
@@ -56,6 +60,9 @@ public class mainClient implements ClientModInitializer {
 
                     if (balance[0] == -1) {
                         guiGraphics.drawString(mc.font, "Loading..", x + mc.font.width("Balance: "), y, 0xAAAAAA, true);
+                    } else if(balance[0] == -2) {
+                        guiGraphics.drawString(mc.font, "Error..", x + mc.font.width("Balance: "), y, 0xAA0000, true);
+
                     } else {
                         guiGraphics.drawString(mc.font, balance[0] + "KRO", x + mc.font.width("Balance: "), y, 0x00AA00, true);
                     }
