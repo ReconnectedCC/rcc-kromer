@@ -37,11 +37,12 @@ public class mainClient implements ClientModInitializer {
 
                     CompletableFuture
                             .supplyAsync(() -> GetPlayerByUuid.execute(mc.player.getStringUUID()), NETWORK_EXECUTOR)
-                            .orTimeout(1, TimeUnit.SECONDS)
                             .thenCompose(future -> future)
+                            .orTimeout(1, TimeUnit.SECONDS)
                             .whenComplete((b, ex) -> {
                                 if (ex != null) {
                                     balance[0] = -2;
+                                    return;
                                 };
 
                                 if (b instanceof Result.Ok<GetPlayerByName.GetPlayerByResponse> value) {
@@ -58,14 +59,16 @@ public class mainClient implements ClientModInitializer {
 
                     guiGraphics.drawString(mc.font, "Balance: ", x, y, 0x55FF55, true);
 
+                    x += mc.font.width("Balance: ");
                     if (balance[0] == -1) {
-                        guiGraphics.drawString(mc.font, "Loading..", x + mc.font.width("Balance: "), y, 0xAAAAAA, true);
+                        guiGraphics.drawString(mc.font, "Loading..", x, y, 0xAAAAAA, true);
                     } else if(balance[0] == -2) {
-                        guiGraphics.drawString(mc.font, "Error..", x + mc.font.width("Balance: "), y, 0xAA0000, true);
-
+                        guiGraphics.drawString(mc.font, "Error..", x, y, 0xAA0000, true);
                     } else {
-                        guiGraphics.drawString(mc.font, balance[0] + "KRO", x + mc.font.width("Balance: "), y, 0x00AA00, true);
+                        guiGraphics.drawString(mc.font, balance[0] + "KRO", x, y, 0x00AA00, true);
                     }
+
+                    x = 10;
                 });
             }
         });
