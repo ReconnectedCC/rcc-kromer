@@ -16,6 +16,9 @@
     ],
     "server": [
       "cc.reconnected.kromer.Kromer"
+    ],
+    "modmenu": [
+      "cc.reconnected.kromer.client.ModMenuApiImpl"
     ]
   },
   "mixins": [

@@ -1,0 +1,5 @@
+{
+  "text.autoconfig.rcc-kromer.title": "rcc-kromer configuration",
+  "text.autoconfig.rcc-kromer.option.balanceDisplay": "Balance in top-left of pause screen",
+  "text.autoconfig.rcc-kromer.option.toastPopup": "Show a toast when transaction"
+}
