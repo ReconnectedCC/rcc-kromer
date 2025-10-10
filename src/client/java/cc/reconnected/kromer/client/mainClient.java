@@ -3,72 +3,83 @@ package cc.reconnected.kromer.client;
 import cc.reconnected.kromer.arguments.AddressArgumentType;
 import cc.reconnected.kromer.arguments.KromerArgumentInfo;
 import cc.reconnected.kromer.arguments.KromerArgumentType;
+import cc.reconnected.kromer.networking.BalanceRequestPacket;
+import cc.reconnected.kromer.networking.BalanceResponsePacket;
+import cc.reconnected.kromer.networking.TransactionPacket;
+import io.netty.buffer.Unpooled;
 import net.fabricmc.api.ClientModInitializer;
+import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
+import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.fabricmc.fabric.api.client.screen.v1.ScreenEvents;
 import net.fabricmc.fabric.api.command.v2.ArgumentTypeRegistry;
+import net.minecraft.client.gui.components.toasts.SystemToast;
 import net.minecraft.client.gui.screens.PauseScreen;
 import net.minecraft.commands.synchronization.SingletonArgumentInfo;
+import net.minecraft.network.FriendlyByteBuf;
+import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
-import ovh.sad.jkromer.http.Result;
-import ovh.sad.jkromer.http.v1.GetPlayerByName;
-import ovh.sad.jkromer.http.v1.GetPlayerByUuid;
+import ovh.sad.jkromer.models.Transaction;
 
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.TimeUnit;
-
+import java.util.concurrent.atomic.AtomicReference;
 
 public class mainClient implements ClientModInitializer {
-    public static final ExecutorService NETWORK_EXECUTOR = Executors.newCachedThreadPool();
-    private long lastRequestTime = 0;
+    private final AtomicReference<Float> balance = new AtomicReference<>(-1f);
+    private boolean initialBalanceRequested = false;
 
     @Override
     public void onInitializeClient() {
-        ArgumentTypeRegistry.registerArgumentType(new ResourceLocation("rcc-kromer", "kromer_amount"), KromerArgumentType.class, new KromerArgumentInfo());
-        ArgumentTypeRegistry.registerArgumentType(new ResourceLocation("rcc-kromer", "kromer_address"), AddressArgumentType.class, SingletonArgumentInfo.contextFree(AddressArgumentType::address));
-        final double[] balance = {-1};
+        ArgumentTypeRegistry.registerArgumentType(
+                new ResourceLocation("rcc-kromer", "kromer_amount"),
+                KromerArgumentType.class,
+                new KromerArgumentInfo()
+        );
+        ArgumentTypeRegistry.registerArgumentType(
+                new ResourceLocation("rcc-kromer", "kromer_address"),
+                AddressArgumentType.class,
+                SingletonArgumentInfo.contextFree(AddressArgumentType::address)
+        );
 
-        ScreenEvents.AFTER_INIT.register((mc, screen, scaledWidth, scaledHeight) -> {
+        ClientTickEvents.END_CLIENT_TICK.register(client -> {
+            if (!initialBalanceRequested && client.player != null && client.getConnection().getConnection().isConnected()) {
+                ClientPlayNetworking.send(BalanceRequestPacket.ID, new FriendlyByteBuf(Unpooled.buffer()));
+                initialBalanceRequested = true;
+            }
+        });
+
+        ClientPlayNetworking.registerGlobalReceiver(TransactionPacket.ID, (client, handler, buf, responseSender) -> {
+            Transaction tx = TransactionPacket.readTransaction(buf);
+            float bal = buf.readFloat();
+            if (bal != -1) balance.set(bal);
+
+            if(client.getToasts().queued.size() < 3) {
+                client.getToasts().addToast(SystemToast.multiline(client, SystemToast.SystemToastIds.TUTORIAL_HINT,
+                        Component.literal("Transaction"),
+                        Component.literal("Incoming " + tx.value + "KRO from " + tx.from + "! Balance is now " + String.format("%.2fKRO", Math.floor(balance.get() * 100) / 100.0))));
+            }
+        });
+
+        ClientPlayNetworking.registerGlobalReceiver(BalanceResponsePacket.ID, (client, handler, buf, responseSender) -> {
+            balance.set(buf.readFloat());
+        });
+
+        ScreenEvents.AFTER_INIT.register((mc, screen, sw, sh) -> {
             if (screen instanceof PauseScreen) {
-                long now = System.currentTimeMillis();
-                if (now - lastRequestTime >= 15000) {
-                    lastRequestTime = now;
-
-                    CompletableFuture
-                            .supplyAsync(() -> GetPlayerByUuid.execute(mc.player.getStringUUID()), NETWORK_EXECUTOR)
-                            .thenCompose(future -> future)
-                            .orTimeout(1, TimeUnit.SECONDS)
-                            .whenComplete((b, ex) -> {
-                                if (ex != null) {
-                                    balance[0] = -2;
-                                    return;
-                                };
-
-                                if (b instanceof Result.Ok<GetPlayerByName.GetPlayerByResponse> value) {
-                                    if (!value.value().data.isEmpty()) {
-                                        balance[0] = value.value().data.get(0).balance;
-                                    }
-                                }
-                            });
-                }
-
-                ScreenEvents.afterRender(screen).register((screen1, guiGraphics, mouseX, mouseY, tickDelta) -> {
+                ScreenEvents.afterRender(screen).register((scr, guiGraphics, mouseX, mouseY, tickDelta) -> {
                     int x = 10;
                     int y = 10;
 
                     guiGraphics.drawString(mc.font, "Balance: ", x, y, 0x55FF55, true);
-
                     x += mc.font.width("Balance: ");
-                    if (balance[0] == -1) {
+
+                    Float bal = balance.get();
+                    if (bal == -1) {
                         guiGraphics.drawString(mc.font, "Loading..", x, y, 0xAAAAAA, true);
-                    } else if(balance[0] == -2) {
+                    } else if (bal == -2) {
                         guiGraphics.drawString(mc.font, "Error..", x, y, 0xAA0000, true);
                     } else {
-                        guiGraphics.drawString(mc.font, balance[0] + "KRO", x, y, 0x00AA00, true);
+                        String balStr = String.format("%.2fKRO", Math.floor(bal * 100) / 100.0);
+                        guiGraphics.drawString(mc.font, balStr, x, y, 0x00AA00, true);
                     }
-
-                    x = 10;
                 });
             }
         });

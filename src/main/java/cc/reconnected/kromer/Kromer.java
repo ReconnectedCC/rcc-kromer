@@ -20,6 +20,9 @@ import cc.reconnected.kromer.commands.TransactionsCommand;
 import cc.reconnected.kromer.database.Database;
 import cc.reconnected.kromer.database.Wallet;
 import cc.reconnected.kromer.database.WelfareData;
+import cc.reconnected.kromer.networking.BalanceRequestPacket;
+import cc.reconnected.kromer.networking.BalanceResponsePacket;
+import cc.reconnected.kromer.networking.TransactionPacket;
 import com.mojang.authlib.GameProfile;
 
 import java.io.File;
@@ -29,11 +32,13 @@ import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.*;
 import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicReference;
 
 import com.typesafe.config.ConfigBeanFactory;
 import com.typesafe.config.ConfigFactory;
 import com.typesafe.config.ConfigParseOptions;
 import com.typesafe.config.ConfigSyntax;
+import io.netty.buffer.Unpooled;
 import me.alexdevs.solstice.Solstice;
 import me.alexdevs.solstice.modules.afk.AfkModule;
 import me.alexdevs.solstice.modules.afk.data.AfkPlayerData;
@@ -43,8 +48,10 @@ import net.fabricmc.fabric.api.command.v2.ArgumentTypeRegistry;
 import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents;
+import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
 import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.commands.synchronization.SingletonArgumentInfo;
+import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
@@ -54,6 +61,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import cc.reconnected.kromer.common.CommonMetaParser;
 import ovh.sad.jkromer.http.Result;
+import ovh.sad.jkromer.http.addresses.GetAddress;
 import ovh.sad.jkromer.http.internal.CreateWallet;
 import ovh.sad.jkromer.http.internal.GiveMoney;
 import ovh.sad.jkromer.http.misc.StartWs;
@@ -70,11 +78,11 @@ public class Kromer implements DedicatedServerModInitializer {
 
     public static Boolean kromerStatus = false;
     public static int welfareQueued = 0;
+    public static ConcurrentLRUCache<String, Float> balanceCache = new ConcurrentLRUCache<String, Float>(500); // 500 is arbitary
 
     public static void connectWebsocket(MinecraftServer server)
         throws URISyntaxException {
         LOGGER.debug("Connecting to Websocket..");
-
         CompletableFuture
                 .supplyAsync(StartWs::execute, NETWORK_EXECUTOR)
                 .thenCompose(f -> f)
@@ -127,7 +135,42 @@ public class Kromer implements DedicatedServerModInitializer {
             WelfareData.class,
             WelfareData::new
         );
+        ServerPlayNetworking.registerGlobalReceiver(BalanceRequestPacket.ID, (server, player, handler, buf, responseSender) -> {
+            server.execute(() -> {
+                Wallet wallet = database.getWallet(player.getUUID());
+                if(wallet == null) {
+                    LOGGER.error("BalanceRequestPacket: user " + player.getUUID().toString() + " has no valid wallet.");
+                    return;
+                }
 
+                AtomicReference<Float> balance = new AtomicReference<>(balanceCache.get(wallet.address));
+                if(balance.get() == null) {
+                    CompletableFuture
+                            .supplyAsync(() -> GetAddress.execute(wallet.address), NETWORK_EXECUTOR)
+                            .thenCompose(future -> future)
+                            .whenComplete((b, ex) -> {
+                                if (ex != null) {
+                                    LOGGER.error("BalanceRequestPacket: for user " + player.getUUID().toString() + " failed balance retrival due to " + ex.getMessage());
+                                    return;
+                                }
+
+                                if (b instanceof Result.Ok<GetAddress.GetAddressBody> ok) {
+                                    balance.set(ok.value().address.balance);
+                                    balanceCache.put(wallet.address, ok.value().address.balance);
+                                } else if (b instanceof Result.Err<GetAddress.GetAddressBody> err) {
+                                    LOGGER.error("BalanceRequestPacket: for user " + player.getUUID().toString() + " failed balance retrival due to " + err.toString());
+                                    return;
+                                }
+                            });
+                }
+
+                if(balance.get() == null) {
+                    return;
+                }
+
+                ServerPlayNetworking.send(player, BalanceResponsePacket.ID, BalanceResponsePacket.serialise(balance.get()));
+            });
+        });
         ServerLifecycleEvents.SERVER_STARTED.register(server -> {
             try {
                 connectWebsocket(server);
@@ -299,6 +342,17 @@ public class Kromer implements DedicatedServerModInitializer {
                                 result.pairs.get("message")
                         )
                 );
+
+
+                Float balVal = Kromer.balanceCache.get(transaction.to);
+                if(balanceCache == null) {
+                    balVal = -1f;
+                } else {
+                    balVal = balVal + transaction.value;
+                    Kromer.balanceCache.put(transaction.to, balVal);
+                }
+
+                ServerPlayNetworking.send(player, TransactionPacket.ID, TransactionPacket.serialise(transaction, balVal));
             } else { // Don't duplicate code here. However, I don't want to make an extra function, so be it.
                 player.sendSystemMessage(
                         Locale.use(

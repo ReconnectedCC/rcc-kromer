@@ -9,6 +9,7 @@
   "license": "MIT",
   "icon": "assets/rcc-kromer/icon.png",
   "environment": "*",
+  "accessWidener": "rcc-kromer.accesswidener",
   "entrypoints": {
     "client": [
       "cc.reconnected.kromer.client.mainClient"

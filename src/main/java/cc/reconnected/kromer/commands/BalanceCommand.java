@@ -26,7 +26,6 @@ import net.minecraft.server.level.ServerPlayer;
 import ovh.sad.jkromer.models.Address;
 
 public class BalanceCommand {
-
     public static void register(
         CommandDispatcher<CommandSourceStack> dispatcher,
         CommandBuildContext registryAccess,
@@ -126,10 +125,9 @@ public class BalanceCommand {
             return 0;
         }
 
-        // Run network call off the main thread
         CompletableFuture
                 .supplyAsync(() -> GetAddress.execute(kristAddress == null ? myWallet.address : kristAddress), NETWORK_EXECUTOR)
-                .thenCompose(future -> future) // because GetAddress.execute returns CompletableFuture<Result<...>>
+                .thenCompose(future -> future)
                 .whenComplete((b, ex) -> {
                     if (ex != null) {
                         source.getServer().execute(() ->
@@ -140,19 +138,23 @@ public class BalanceCommand {
 
                     if (b instanceof Result.Ok<GetAddress.GetAddressBody> ok) {
                         if(kristAddress == null) {
-                            source.getServer().execute(() ->
-                                    source.sendSuccess(
-                                            () -> Locale.use(Locale.Messages.BALANCE, ok.value().address.balance),
-                                            false
-                                    )
-                            );
+                            source.getServer().execute(() -> {
+                                source.sendSuccess(
+                                        () -> Locale.use(Locale.Messages.BALANCE, ok.value().address.balance),
+                                        false
+                                );
+
+                                Kromer.balanceCache.put(myWallet.address, ok.value().address.balance);
+                            });
                         } else {
-                            source.getServer().execute(() ->
-                                    source.sendSuccess(
-                                            () -> Locale.use(Locale.Messages.BALANCE_OTHERS, kristAddress, ok.value().address.balance),
-                                            false
-                                    )
-                            );
+                            source.getServer().execute(() -> {
+                                source.sendSuccess(
+                                        () -> Locale.use(Locale.Messages.BALANCE_OTHERS, kristAddress, ok.value().address.balance),
+                                        false
+                                );
+
+                                Kromer.balanceCache.put(kristAddress, ok.value().address.balance);
+                            });
                         }
                     } else if (b instanceof Result.Err<GetAddress.GetAddressBody> err) {
                         source.getServer().execute(() ->
