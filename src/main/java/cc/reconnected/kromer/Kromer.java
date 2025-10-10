@@ -26,18 +26,18 @@ import cc.reconnected.kromer.networking.TransactionPacket;
 import com.mojang.authlib.GameProfile;
 
 import java.io.File;
+import java.io.IOException;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.nio.file.Files;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.*;
+import java.util.Optional;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicReference;
 
-import com.typesafe.config.ConfigBeanFactory;
-import com.typesafe.config.ConfigFactory;
-import com.typesafe.config.ConfigParseOptions;
-import com.typesafe.config.ConfigSyntax;
+import com.typesafe.config.*;
 import io.netty.buffer.Unpooled;
 import me.alexdevs.solstice.Solstice;
 import me.alexdevs.solstice.modules.afk.AfkModule;
@@ -198,11 +198,13 @@ public class Kromer implements DedicatedServerModInitializer {
         );
 
         config = ConfigBeanFactory.create(
-                ConfigFactory.parseFile(FabricLoader.getInstance().getConfigDir().resolve("rcc-kromer.hocon").toFile(), ConfigParseOptions.defaults().setSyntax(ConfigSyntax.CONF)),
+                ConfigFactory.parseFile(
+                        FabricLoader.getInstance().getConfigDir().resolve("rcc-kromer.hocon").toFile()
+                ),
                 ConfigurationModel.class
         );
 
-        jKromer.endpoint_raw = config.url;
+        jKromer.endpoint_raw = config.getUrl();
         jKromer.endpoint = jKromer.endpoint_raw + "/api/krist";
 
         ScheduledExecutorService scheduler =
@@ -233,24 +235,24 @@ public class Kromer implements DedicatedServerModInitializer {
                 .getPlayerList()
                 .getPlayers()
                 .stream()
-                .filter(z -> Permissions.check(z, config.supporter.group) && !Permissions.check(z, config.bot))
+                .filter(z -> Permissions.check(z, config.getSupporter().getGroup()) && !Permissions.check(z, config.getBot()))
                 .toList();
 
         List<ServerPlayer> playersWithoutSupporter = client.server
                 .getPlayerList()
                 .getPlayers()
                 .stream()
-                .filter(z -> !Permissions.check(z, config.supporter.group) && !Permissions.check(z, config.bot))
+                .filter(z -> !Permissions.check(z, config.getSupporter().getGroup()) && !Permissions.check(z, config.getBot()))
                 .toList();
 
-        float welfare = config.welfare;
+        float welfare = (float)config.getWelfare();
         if (
                 !playersWithSupporter.isEmpty() &&
                 !playersWithoutSupporter.isEmpty()
         ) {
             welfare =
-                    config.welfare *
-                    (config.supporter.multiplier * playersWithSupporter.size());
+                    (float)config.getWelfare() *
+                    ((float)config.getSupporter().getMultiplier() * playersWithSupporter.size());
         }
         return welfare;
     }
@@ -273,8 +275,8 @@ public class Kromer implements DedicatedServerModInitializer {
         if (baseWelfare == 0) {
             return;
         }
-        if(config.bot != null) {
-            if(Permissions.check(player, config.bot)) return; // If bot then bye
+        if(config.getBot() != null) {
+            if(Permissions.check(player, config.getBot())) return; // If bot then bye
         }
         Wallet wallet = Kromer.database.getWallet(player.getUUID());
         if (wallet == null) return;
@@ -303,7 +305,7 @@ public class Kromer implements DedicatedServerModInitializer {
         }
         if(!welfareData.optedOut) {
             CompletableFuture
-                    .supplyAsync(() -> GiveMoney.execute(config.internal_key, finalWelfare, wallet.address), NETWORK_EXECUTOR)
+                    .supplyAsync(() -> GiveMoney.execute(config.getInternal_key(), finalWelfare, wallet.address), NETWORK_EXECUTOR)
                     .thenCompose(f -> f);
         }
         welfareData.oldActiveTime = activeTime;
@@ -446,7 +448,7 @@ public class Kromer implements DedicatedServerModInitializer {
         // Retroactive KRO giving
         float kroAmountRaw = (float) (((double) solsticeData.activeTime /
                 3600) *
-                config.welfare);
+                config.getWelfare());
         float kroAmount = Math.round(kroAmountRaw * 100f) / 100f;
 
         if (kroAmount != 0) {
@@ -456,7 +458,7 @@ public class Kromer implements DedicatedServerModInitializer {
         }
 
         CompletableFuture
-                .supplyAsync(() -> CreateWallet.execute(config.internal_key, name, uuid.toString()), NETWORK_EXECUTOR)
+                .supplyAsync(() -> CreateWallet.execute(config.getInternal_key(), name, uuid.toString()), NETWORK_EXECUTOR)
                 .thenCompose(f -> f)
                 .whenComplete((createWalletResult, ex) -> {
                     if (ex != null) {
@@ -475,7 +477,7 @@ public class Kromer implements DedicatedServerModInitializer {
 
                         if (kroAmount != 0) {
                             CompletableFuture
-                                    .supplyAsync(() -> GiveMoney.execute(config.internal_key, kroAmount, createWallet.value().address), NETWORK_EXECUTOR)
+                                    .supplyAsync(() -> GiveMoney.execute(config.getInternal_key(), kroAmount, createWallet.value().address), NETWORK_EXECUTOR)
                                     .thenCompose(f -> f)
                                     .whenComplete((giveMoneyResult, ex2) -> {
                                         if (ex2 != null) {
