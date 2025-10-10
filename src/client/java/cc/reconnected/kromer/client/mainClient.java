@@ -8,7 +8,9 @@ import cc.reconnected.kromer.networking.BalanceResponsePacket;
 import cc.reconnected.kromer.networking.TransactionPacket;
 import io.netty.buffer.Unpooled;
 import net.fabricmc.api.ClientModInitializer;
+import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientEntityEvents;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
+import net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.fabricmc.fabric.api.client.screen.v1.ScreenEvents;
 import net.fabricmc.fabric.api.command.v2.ArgumentTypeRegistry;
@@ -24,7 +26,6 @@ import java.util.concurrent.atomic.AtomicReference;
 
 public class mainClient implements ClientModInitializer {
     private final AtomicReference<Float> balance = new AtomicReference<>(-1f);
-    private boolean initialBalanceRequested = false;
 
     @Override
     public void onInitializeClient() {
@@ -39,18 +40,16 @@ public class mainClient implements ClientModInitializer {
                 SingletonArgumentInfo.contextFree(AddressArgumentType::address)
         );
 
-        ClientTickEvents.END_CLIENT_TICK.register(client -> {
-            if (!initialBalanceRequested && client.player != null && client.getConnection().getConnection().isConnected()) {
+        ClientPlayConnectionEvents.JOIN.register((packetListener, sender, client) -> {
                 ClientPlayNetworking.send(BalanceRequestPacket.ID, new FriendlyByteBuf(Unpooled.buffer()));
-                initialBalanceRequested = true;
-            }
         });
+
 
         ClientPlayNetworking.registerGlobalReceiver(TransactionPacket.ID, (client, handler, buf, responseSender) -> {
             Transaction tx = TransactionPacket.readTransaction(buf);
             float bal = buf.readFloat();
-            if (bal != -1) balance.set(bal);
 
+            if (bal != -1) balance.set(bal);
             if(client.getToasts().queued.size() < 3) {
                 client.getToasts().addToast(SystemToast.multiline(client, SystemToast.SystemToastIds.TUTORIAL_HINT,
                         Component.literal("Transaction"),

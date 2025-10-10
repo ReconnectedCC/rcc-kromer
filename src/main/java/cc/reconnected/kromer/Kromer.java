@@ -332,6 +332,16 @@ public class Kromer implements DedicatedServerModInitializer {
         ServerPlayer player,
         Transaction transaction
     ) {
+        Float balVal = Kromer.balanceCache.get(transaction.to);
+        if(balanceCache == null) {
+            balVal = -1f;
+        } else {
+            balVal = balVal + transaction.value;
+            Kromer.balanceCache.put(transaction.to, balVal);
+        }
+
+        ServerPlayNetworking.send(player, TransactionPacket.ID, TransactionPacket.serialise(transaction, balVal));
+
         var result = CommonMetaParser.parseWithResult(transaction.metadata);
 
         if(result.success) {
@@ -344,17 +354,6 @@ public class Kromer implements DedicatedServerModInitializer {
                                 result.pairs.get("message")
                         )
                 );
-
-
-                Float balVal = Kromer.balanceCache.get(transaction.to);
-                if(balanceCache == null) {
-                    balVal = -1f;
-                } else {
-                    balVal = balVal + transaction.value;
-                    Kromer.balanceCache.put(transaction.to, balVal);
-                }
-
-                ServerPlayNetworking.send(player, TransactionPacket.ID, TransactionPacket.serialise(transaction, balVal));
             } else { // Don't duplicate code here. However, I don't want to make an extra function, so be it.
                 player.sendSystemMessage(
                         Locale.use(
