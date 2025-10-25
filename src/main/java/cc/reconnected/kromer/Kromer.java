@@ -27,6 +27,8 @@ import com.mojang.authlib.GameProfile;
 
 import java.io.File;
 import java.io.IOException;
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.nio.file.Files;
@@ -78,7 +80,7 @@ public class Kromer implements DedicatedServerModInitializer {
 
     public static Boolean kromerStatus = false;
     public static int welfareQueued = 0;
-    public static ConcurrentLRUCache<String, Float> balanceCache = new ConcurrentLRUCache<String, Float>(500); // 500 is arbitary
+    public static ConcurrentLRUCache<String, BigDecimal> balanceCache = new ConcurrentLRUCache<String, BigDecimal>(500); // 500 is arbitary
 
     public static void connectWebsocket(MinecraftServer server)
         throws URISyntaxException {
@@ -143,7 +145,7 @@ public class Kromer implements DedicatedServerModInitializer {
                     return;
                 }
 
-                AtomicReference<Float> balance = new AtomicReference<>(balanceCache.get(wallet.address));
+                AtomicReference<BigDecimal> balance = new AtomicReference<>(balanceCache.get(wallet.address));
                 if(balance.get() == null) {
                     CompletableFuture
                             .supplyAsync(() -> GetAddress.execute(wallet.address), NETWORK_EXECUTOR)
@@ -186,7 +188,7 @@ public class Kromer implements DedicatedServerModInitializer {
             }
             grantWallet(a.player.getScoreboardName(), a.player.getUUID(), a.player);
             checkTransfers(a.player);
-            float finalWelfare = calculateWelfare();
+            BigDecimal finalWelfare = calculateWelfare();
             executeWelfareForPlayer(a.player,finalWelfare);
         });
 
@@ -226,10 +228,10 @@ public class Kromer implements DedicatedServerModInitializer {
         );
     }
 
-    private static float calculateWelfare(){
+    private static BigDecimal calculateWelfare(){
         if (client == null) {
             LOGGER.error("Websocket client is null, cannot calculate welfare.");
-            return 0;
+            return BigDecimal.valueOf(0);
         }
         List<ServerPlayer> playersWithSupporter = client.server
                 .getPlayerList()
@@ -245,14 +247,18 @@ public class Kromer implements DedicatedServerModInitializer {
                 .filter(z -> !Permissions.check(z, config.getSupporter().getGroup()) && !Permissions.check(z, config.getBot()))
                 .toList();
 
-        float welfare = (float)config.getWelfare();
+        BigDecimal welfare = BigDecimal.valueOf(config.getWelfare());
         if (
                 !playersWithSupporter.isEmpty() &&
                 !playersWithoutSupporter.isEmpty()
         ) {
             welfare =
-                    (float)config.getWelfare() *
-                    ((float)config.getSupporter().getMultiplier() * playersWithSupporter.size());
+                    BigDecimal.valueOf(config.getWelfare())
+                            .multiply(
+                                    BigDecimal.valueOf(
+                                            config.getSupporter().getMultiplier() * playersWithSupporter.size()
+                                    )
+                            );
         }
         return welfare;
     }
@@ -262,7 +268,7 @@ public class Kromer implements DedicatedServerModInitializer {
             LOGGER.error("Websocket client is null, cannot execute welfare.");
             return;
         }
-        float finalWelfare = calculateWelfare();
+        BigDecimal finalWelfare = calculateWelfare();
 
         client.server
             .getPlayerList()
@@ -271,8 +277,8 @@ public class Kromer implements DedicatedServerModInitializer {
                executeWelfareForPlayer(p,finalWelfare);
             });
     }
-    private static void executeWelfareForPlayer(ServerPlayer player, float baseWelfare) {
-        if (baseWelfare == 0) {
+    private static void executeWelfareForPlayer(ServerPlayer player, BigDecimal baseWelfare) {
+        if (baseWelfare.equals(BigDecimal.valueOf(0))) {
             return;
         }
         if(config.getBot() != null) {
@@ -293,9 +299,11 @@ public class Kromer implements DedicatedServerModInitializer {
         int activeTime = solsticeData.activeTime;
         var oldActiveTime = welfareData.oldActiveTime;
         float deltaActiveTime = activeTime - oldActiveTime;
-        float relativeDeltaActiveTime = deltaActiveTime / interval; // make it 1 if equal to interval, or greater if they log off and rejoin mid-interval
-        float finalWelfare = Math.round((baseWelfare * relativeDeltaActiveTime)*100f)/100f;
-        if (finalWelfare == 0) return;
+        BigDecimal relativeDeltaActiveTime = BigDecimal.valueOf(deltaActiveTime / interval)
+                .setScale(2, RoundingMode.HALF_EVEN); // make it 1 if equal to interval, or greater if they log off and rejoin mid-interval
+        BigDecimal finalWelfare = baseWelfare.multiply(relativeDeltaActiveTime)
+                .setScale(2, RoundingMode.HALF_EVEN);
+        if (finalWelfare.equals(BigDecimal.valueOf(0))) return;
         if (
                 !(welfareData.welfareMuted || welfareData.optedOut)
         ) {
@@ -332,11 +340,11 @@ public class Kromer implements DedicatedServerModInitializer {
         ServerPlayer player,
         Transaction transaction
     ) {
-        Float balVal = Kromer.balanceCache.get(transaction.to);
+        BigDecimal balVal = Kromer.balanceCache.get(transaction.to);
         if(balanceCache == null) {
-            balVal = -1f;
+            balVal = BigDecimal.valueOf(-1f);
         } else {
-            balVal = balVal + transaction.value;
+            balVal = balVal.add(transaction.value);
             Kromer.balanceCache.put(transaction.to, balVal);
         }
 
@@ -448,11 +456,10 @@ public class Kromer implements DedicatedServerModInitializer {
         float kroAmountRaw = (float) (((double) solsticeData.activeTime /
                 3600) *
                 config.getWelfare());
-        float kroAmount = Math.round(kroAmountRaw * 100f) / 100f;
 
-        if (kroAmount != 0) {
+        if (kroAmountRaw != 0) {
             player.sendSystemMessage(
-                Locale.use(Locale.Messages.RETROACTIVE, kroAmount)
+                Locale.use(Locale.Messages.RETROACTIVE, kroAmountRaw)
             );
         }
 
@@ -474,9 +481,9 @@ public class Kromer implements DedicatedServerModInitializer {
                         );
                         database.setWallet(uuid, wallet);
 
-                        if (kroAmount != 0) {
+                        if (kroAmountRaw != 0) {
                             CompletableFuture
-                                    .supplyAsync(() -> GiveMoney.execute(config.getInternal_key(), kroAmount, createWallet.value().address), NETWORK_EXECUTOR)
+                                    .supplyAsync(() -> GiveMoney.execute(config.getInternal_key(), BigDecimal.valueOf(kroAmountRaw), createWallet.value().address), NETWORK_EXECUTOR)
                                     .thenCompose(f -> f)
                                     .whenComplete((giveMoneyResult, ex2) -> {
                                         if (ex2 != null) {

@@ -4,16 +4,17 @@ import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.resources.ResourceLocation;
 import ovh.sad.jkromer.models.Transaction;
 
+import java.math.BigDecimal;
 import java.util.Date;
 import java.util.Objects;
 
 public class TransactionPacket {
     public static final ResourceLocation ID = new ResourceLocation("rcc-kromer", "transaction");
 
-    public static FriendlyByteBuf serialise(Transaction tx, Float balance) {
+    public static FriendlyByteBuf serialise(Transaction tx, BigDecimal balance) {
         FriendlyByteBuf buf = new FriendlyByteBuf(io.netty.buffer.Unpooled.buffer());
         writeTransaction(buf, tx);
-        buf.writeFloat(balance);
+        buf.writeUtf(balance.toString());
         return buf;
     }
     public static void writeTransaction(FriendlyByteBuf buf, Transaction tx) {
@@ -21,7 +22,7 @@ public class TransactionPacket {
         buf.writeInt(tx.id);
         buf.writeUtf(tx.from);
         buf.writeUtf(tx.to);
-        buf.writeFloat(tx.value);
+        buf.writeUtf(tx.value.toString());
         buf.writeLong(tx.time.getTime());
         buf.writeUtf(Objects.requireNonNullElse(tx.name, ""));
         buf.writeUtf(Objects.requireNonNullElse(tx.metadata, ""));
@@ -34,7 +35,7 @@ public class TransactionPacket {
         int id = buf.readInt();
         String from = buf.readUtf();
         String to = buf.readUtf();
-        float value = buf.readFloat();
+        BigDecimal value = new BigDecimal(buf.readUtf());
         Date time = new Date(buf.readLong());
         String name = buf.readUtf();
         String metadata = buf.readUtf();

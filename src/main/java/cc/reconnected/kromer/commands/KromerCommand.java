@@ -110,7 +110,7 @@ public class KromerCommand {
                                     var amount = KromerArgumentType.getBigDecimal(context, "amount");
 
                                     CompletableFuture
-                                            .supplyAsync(() -> GiveMoney.execute(Kromer.config.getInternal_key(), amount.floatValue(),
+                                            .supplyAsync(() -> GiveMoney.execute(Kromer.config.getInternal_key(), amount,
                                                     Kromer.database.getWallet(player.getUUID()).address), NETWORK_EXECUTOR)
                                             .thenCompose(f -> f)
                                             .whenComplete((b, ex) -> {

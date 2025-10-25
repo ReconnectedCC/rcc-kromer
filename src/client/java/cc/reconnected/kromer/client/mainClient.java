@@ -26,10 +26,13 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import ovh.sad.jkromer.models.Transaction;
 
+import java.math.BigDecimal;
+import java.math.RoundingMode;
+import java.util.Objects;
 import java.util.concurrent.atomic.AtomicReference;
 
 public class mainClient implements ClientModInitializer {
-    private final AtomicReference<Float> balance = new AtomicReference<>(-1f);
+    private final AtomicReference<BigDecimal> balance = new AtomicReference<>(BigDecimal.valueOf(-1f));
 
     @Override
     public void onInitializeClient() {
@@ -54,18 +57,22 @@ public class mainClient implements ClientModInitializer {
 
         ClientPlayNetworking.registerGlobalReceiver(TransactionPacket.ID, (client, handler, buf, responseSender) -> {
             Transaction tx = TransactionPacket.readTransaction(buf);
-            float bal = buf.readFloat();
+            BigDecimal decimal = new BigDecimal(buf.readUtf())
+                    .setScale(2, RoundingMode.HALF_EVEN);
 
-            if (bal != -1) balance.set(bal);
+            if (Objects.equals(decimal.toString(), "-1")) {
+                balance.set(decimal);
+            }
             if(client.getToasts().queued.size() < 3 && config.getConfig().toastPopup) {
                 client.getToasts().addToast(SystemToast.multiline(client, SystemToast.SystemToastIds.TUTORIAL_HINT,
                         Component.literal("Transaction"),
-                        Component.literal("Incoming " + tx.value + "KRO from " + tx.from + "! Balance is now " + String.format("%.2fKRO", Math.floor(balance.get() * 100) / 100.0))));
+                        Component.literal("Incoming " + tx.value + "KRO from " + tx.from + "! Balance is now " + decimal + "KRO.")));
             }
         });
 
         ClientPlayNetworking.registerGlobalReceiver(BalanceResponsePacket.ID, (client, handler, buf, responseSender) -> {
-            balance.set(buf.readFloat());
+            balance.set(new BigDecimal(buf.readUtf())
+                    .setScale(2, RoundingMode.HALF_EVEN));
         });
 
         ScreenEvents.AFTER_INIT.register((mc, screen, sw, sh) -> {
@@ -78,14 +85,13 @@ public class mainClient implements ClientModInitializer {
                         guiGraphics.drawString(mc.font, "Balance: ", x, y, 0x55FF55, true);
                         x += mc.font.width("Balance: ");
 
-                        Float bal = balance.get();
-                        if (bal == -1) {
+                        BigDecimal bal = balance.get();
+                        if (Objects.equals(bal.toString(), "-1")) {
                             guiGraphics.drawString(mc.font, "Loading..", x, y, 0xAAAAAA, true);
-                        } else if (bal == -2) {
+                        } else if (Objects.equals(bal.toString(), "-2")) {
                             guiGraphics.drawString(mc.font, "Error..", x, y, 0xAA0000, true);
                         } else {
-                            String balStr = String.format("%.2fKRO", Math.floor(bal * 100) / 100.0);
-                            guiGraphics.drawString(mc.font, balStr, x, y, 0x00AA00, true);
+                            guiGraphics.drawString(mc.font, bal + "KRO", x, y, 0x00AA00, true);
                         }
                     }
                 });

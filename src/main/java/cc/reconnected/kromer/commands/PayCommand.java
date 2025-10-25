@@ -262,7 +262,7 @@ public class PayCommand {
         }
 
         CompletableFuture
-                .supplyAsync(() -> MakeTransaction.execute(wallet.privatekey, payment.to, payment.amount.floatValue(), payment.metadata), NETWORK_EXECUTOR)
+                .supplyAsync(() -> MakeTransaction.execute(wallet.privatekey, payment.to, payment.amount, payment.metadata), NETWORK_EXECUTOR)
                 .thenCompose(future -> future)  // unwrap nested CompletableFuture<Result<...>>
                 .whenComplete((result, ex) -> {
                     context.getSource().getServer().execute(() -> {
