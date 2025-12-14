@@ -84,6 +84,10 @@ public class Kromer implements DedicatedServerModInitializer {
 
     private static Kromer instance = null;
 
+    public static Optional<Kromer> instance() {
+        return Optional.ofNullable(instance);
+    }
+
     public static void connectWebsocket(MinecraftServer server)
         throws URISyntaxException {
         LOGGER.debug("Connecting to Websocket..");
@@ -122,10 +126,6 @@ public class Kromer implements DedicatedServerModInitializer {
                         );
                     }
                 });
-    }
-
-    public static Optional<Kromer> instance() {
-        return Optional.ofNullable(instance);
     }
 
     public void onInitializeServer() {
