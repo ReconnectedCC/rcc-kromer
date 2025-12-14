@@ -124,7 +124,7 @@ public class Kromer implements DedicatedServerModInitializer {
                 });
     }
 
-    public Optional<Kromer> instance() {
+    public static Optional<Kromer> instance() {
         return Optional.ofNullable(instance);
     }
 
