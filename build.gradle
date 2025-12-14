@@ -152,6 +152,13 @@ publishing {
     }
 
     repositories {
-
+        maven {
+            name = "ReconnectedCC"
+            url = "https://maven.reconnected.cc/releases"
+            credentials {
+                username = System.getenv("MAVEN_USERNAME_RCC")
+                password = System.getenv("MAVEN_PASSWORD_RCC")
+            }
+        }
     }
 }

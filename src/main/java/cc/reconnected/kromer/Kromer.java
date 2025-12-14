@@ -82,6 +82,8 @@ public class Kromer implements DedicatedServerModInitializer {
     public static int welfareQueued = 0;
     public static ConcurrentLRUCache<String, BigDecimal> balanceCache = new ConcurrentLRUCache<String, BigDecimal>(500); // 500 is arbitary
 
+    private static Kromer instance = null;
+
     public static void connectWebsocket(MinecraftServer server)
         throws URISyntaxException {
         LOGGER.debug("Connecting to Websocket..");
@@ -122,7 +124,13 @@ public class Kromer implements DedicatedServerModInitializer {
                 });
     }
 
+    public Optional<Kromer> instance() {
+        return Optional.ofNullable(instance);
+    }
+
     public void onInitializeServer() {
+        instance = this;
+
         ArgumentTypeRegistry.registerArgumentType(new ResourceLocation("rcc-kromer", "kromer_amount"), KromerArgumentType.class, new KromerArgumentInfo());
         ArgumentTypeRegistry.registerArgumentType(new ResourceLocation("rcc-kromer","kromer_address"), AddressArgumentType.class, SingletonArgumentInfo.contextFree(AddressArgumentType::address));
         Flyway flyway = Flyway.configure()
