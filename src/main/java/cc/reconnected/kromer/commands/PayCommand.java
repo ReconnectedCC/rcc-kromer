@@ -12,7 +12,6 @@ import cc.reconnected.kromer.database.Wallet;
 
 import com.mojang.authlib.GameProfile;
 import com.mojang.brigadier.CommandDispatcher;
-import com.mojang.brigadier.arguments.FloatArgumentType;
 import com.mojang.brigadier.arguments.StringArgumentType;
 import com.mojang.brigadier.context.CommandContext;
 
@@ -77,8 +76,73 @@ public class PayCommand {
             .collect(Collectors.joining(";"));
     }
 
+    private static int sendPayment(CommandContext<CommandSourceStack> context, PendingPayment payment) {
+        ServerPlayer player;
+        try {
+            player = Objects.requireNonNull(context.getSource().getPlayer());
+        } catch (NullPointerException e) {
+            context.getSource().sendSuccess(
+                    () -> Component.literal("You must be online to use this command.")
+                            .withStyle(ChatFormatting.RED),
+                    false
+            );
+            return 0;
+        }
+
+        Wallet wallet = Kromer.database.getWallet(player.getUUID());
+        if (wallet == null) {
+            context.getSource().sendSuccess(
+                    () -> Locale.use(Locale.Messages.NO_WALLET),
+                    false
+            );
+            return 0;
+        }
+
+        CompletableFuture
+                .supplyAsync(() -> MakeTransaction.execute(wallet.privatekey, payment.to, payment.amount, payment.metadata), NETWORK_EXECUTOR)
+                .thenCompose(future -> future)  // unwrap nested CompletableFuture<Result<...>>
+                .whenComplete((result, ex) -> {
+                    context.getSource().getServer().execute(() -> {
+                        if (ex != null) {
+                            context.getSource().sendSuccess(
+                                    () -> Locale.use(Locale.Messages.ERROR, ex.getMessage()),
+                                    false
+                            );
+                            return;
+                        }
+                        if (result instanceof Result.Ok<MakeTransaction.MakeTransactionResponse> ok) {
+                            context.getSource().sendSuccess(
+                                    () -> Locale.use(Locale.Messages.PAYMENT_CONFIRMED, payment.amount, payment.to),
+                                    false
+                            );
+                        } else if (result instanceof Result.Err<MakeTransaction.MakeTransactionResponse> err) {
+                            context.getSource().sendSuccess(
+                                    () -> Locale.use(Locale.Messages.ERROR, err.error()),
+                                    false
+                            );
+                        }
+                    });
+                });
+
+
+        return 1;
+    }
+
+
     private static int executePay(CommandContext<CommandSourceStack> context) {
-        pendingPayments.remove(context.getSource().getPlayer().getUUID());
+        ServerPlayer player;
+        try {
+            player = Objects.requireNonNull(context.getSource().getPlayer());
+        } catch (NullPointerException e) {
+            context.getSource().sendSuccess(
+                    () -> Component.literal("You must be online to use this command.")
+                            .withStyle(ChatFormatting.RED),
+                    false
+            );
+            return 0;
+        }
+
+        pendingPayments.remove(player.getUUID());
 
         String recipientInput = AddressArgumentType.getAddress(context, "recipient");
 
@@ -146,9 +210,7 @@ public class PayCommand {
 
         BigDecimal amount = KromerArgumentType.getBigDecimal(context, "amount");
 
-        ServerPlayer thisPlayer = context.getSource().getPlayer();
-
-        Wallet wallet = Kromer.database.getWallet(thisPlayer.getUUID());
+        Wallet wallet = Kromer.database.getWallet(player.getUUID());
 
         if (wallet == null) {
             context
@@ -165,8 +227,8 @@ public class PayCommand {
 
         Map<String, Object> data = new HashMap<>();
         data.put("return", wallet.address);
-        data.put("username", thisPlayer.getScoreboardName());
-        data.put("useruuid", thisPlayer.getUUID());
+        data.put("username", player.getScoreboardName());
+        data.put("useruuid", player.getUUID());
         String metadata = toSemicolonString(data);
 
         if (context.getNodes().size() > 3) {
@@ -180,55 +242,61 @@ public class PayCommand {
         payment.metadata = metadata;
         payment.createdAt = System.currentTimeMillis();
 
-        pendingPayments.put(thisPlayer.getUUID(), payment);
+        // if amount > 25 KRO, require confirmation
+        if (payment.amount.compareTo(new BigDecimal(25)) > 0) {
+            pendingPayments.put(player.getUUID(), payment);
 
-        String finalRecipientName = recipientName;
-        Component confirmButton = Component.literal("[Confirm]").withStyle(style ->
-            style
-                .withColor(ChatFormatting.GREEN)
-                .withBold(true)
-                .withClickEvent(
-                    new net.minecraft.network.chat.ClickEvent(
-                        net.minecraft.network.chat.ClickEvent.Action.RUN_COMMAND,
-                        "/confirm_pay"
-                    )
-                )
-                .withHoverEvent(
-                    new net.minecraft.network.chat.HoverEvent(
-                        net.minecraft.network.chat.HoverEvent.Action.SHOW_TEXT,
-                        Component.literal(
-                            "Click to confirm payment of " +
-                            amount +
-                            "KRO to " +
-                            finalRecipientName
+            String finalRecipientName = recipientName;
+            Component confirmButton = Component.literal("[Confirm]").withStyle(style ->
+                style
+                    .withColor(ChatFormatting.GREEN)
+                    .withBold(true)
+                    .withClickEvent(
+                        new net.minecraft.network.chat.ClickEvent(
+                            net.minecraft.network.chat.ClickEvent.Action.RUN_COMMAND,
+                            "/confirm_pay"
                         )
                     )
-                )
-        );
-
-        context
-            .getSource()
-            .sendSuccess(
-                () ->
-                    Component.literal("Are you sure you want to send ")
-                        .withStyle(ChatFormatting.GREEN)
-                        .append(
-                            Component.literal(amount + "KRO ").withStyle(
-                                ChatFormatting.DARK_GREEN
+                    .withHoverEvent(
+                        new net.minecraft.network.chat.HoverEvent(
+                            net.minecraft.network.chat.HoverEvent.Action.SHOW_TEXT,
+                            Component.literal(
+                                "Click to confirm payment of " +
+                                amount +
+                                "KRO to " +
+                                finalRecipientName
                             )
                         )
-                        .append(Component.literal("to ").withStyle(ChatFormatting.GREEN))
-                        .append(
-                            Component.literal(finalRecipientName).withStyle(
-                                ChatFormatting.DARK_GREEN
-                            )
-                        )
-                        .append(Component.literal("? ").withStyle(ChatFormatting.GREEN))
-                        .append(confirmButton),
-                false
+                    )
             );
-        return 1;
+
+            context
+                .getSource()
+                .sendSuccess(
+                    () ->
+                        Component.literal("Are you sure you want to send ")
+                            .withStyle(ChatFormatting.GREEN)
+                            .append(
+                                Component.literal(amount + "KRO ").withStyle(
+                                    ChatFormatting.DARK_GREEN
+                                )
+                            )
+                            .append(Component.literal("to ").withStyle(ChatFormatting.GREEN))
+                            .append(
+                                Component.literal(finalRecipientName).withStyle(
+                                    ChatFormatting.DARK_GREEN
+                                )
+                            )
+                            .append(Component.literal("? ").withStyle(ChatFormatting.GREEN))
+                            .append(confirmButton),
+                    false
+                );
+            return 1;
+        } else {
+            return sendPayment(context, payment);
+        }
     }
+
     private static int confirmPay(CommandContext<CommandSourceStack> context) {
         PendingPayment payment;
         ServerPlayer player;
@@ -252,43 +320,6 @@ public class PayCommand {
             return 0;
         }
 
-        Wallet wallet = Kromer.database.getWallet(player.getUUID());
-        if (wallet == null) {
-            context.getSource().sendSuccess(
-                    () -> Locale.use(Locale.Messages.NO_WALLET),
-                    false
-            );
-            return 0;
-        }
-
-        CompletableFuture
-                .supplyAsync(() -> MakeTransaction.execute(wallet.privatekey, payment.to, payment.amount, payment.metadata), NETWORK_EXECUTOR)
-                .thenCompose(future -> future)  // unwrap nested CompletableFuture<Result<...>>
-                .whenComplete((result, ex) -> {
-                    context.getSource().getServer().execute(() -> {
-                        if (ex != null) {
-                            context.getSource().sendSuccess(
-                                    () -> Locale.use(Locale.Messages.ERROR, ex.getMessage()),
-                                    false
-                            );
-                            return;
-                        }
-                        if (result instanceof Result.Ok<MakeTransaction.MakeTransactionResponse> ok) {
-                            context.getSource().sendSuccess(
-                                    () -> Locale.use(Locale.Messages.PAYMENT_CONFIRMED, payment.amount, payment.to),
-                                    false
-                            );
-                        } else if (result instanceof Result.Err<MakeTransaction.MakeTransactionResponse> err) {
-                            context.getSource().sendSuccess(
-                                    () -> Locale.use(Locale.Messages.ERROR, err.error()),
-                                    false
-                            );
-                        }
-                    });
-                });
-
-
-        return 1;
+        return sendPayment(context, payment);
     }
-
 }
