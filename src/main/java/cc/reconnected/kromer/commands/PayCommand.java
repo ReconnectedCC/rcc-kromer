@@ -242,8 +242,8 @@ public class PayCommand {
         payment.metadata = metadata;
         payment.createdAt = System.currentTimeMillis();
 
-        // if amount > 25 KRO, require confirmation
-        if (payment.amount.compareTo(new BigDecimal(25)) > 0) {
+        // if amount > 10 KRO, require confirmation
+        if (payment.amount.compareTo(new BigDecimal(10)) > 0) {
             pendingPayments.put(player.getUUID(), payment);
 
             String finalRecipientName = recipientName;
