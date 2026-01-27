@@ -8,6 +8,7 @@ import cc.reconnected.kromer.Kromer;
 import cc.reconnected.kromer.Locale;
 import cc.reconnected.kromer.arguments.AddressArgumentType;
 import cc.reconnected.kromer.arguments.KromerArgumentType;
+import cc.reconnected.kromer.common.CommonMeta;
 import cc.reconnected.kromer.database.Wallet;
 
 import com.mojang.authlib.GameProfile;
@@ -225,21 +226,26 @@ public class PayCommand {
             return 0;
         }
 
-        Map<String, Object> data = new HashMap<>();
-        data.put("return", wallet.address);
-        data.put("username", player.getScoreboardName());
-        data.put("useruuid", player.getUUID());
-        String metadata = toSemicolonString(data);
+        CommonMeta commonMeta = new CommonMeta();
+
+        if (recipientInput.matches("^(?:([a-z0-9-_]{1,32})@)?([a-z0-9]{1,64})\\.kro$")) {
+            commonMeta.positionalEntries.add(recipientInput);
+        }
+
+        commonMeta.keywordEntries.put("return", wallet.address);
+        commonMeta.keywordEntries.put("username", player.getScoreboardName());
+        commonMeta.keywordEntries.put("useruuid", player.getUUID().toString());
 
         if (context.getNodes().size() > 3) {
             // 3 nodes: "pay", "player", "amount", and optionally "metadata"
-            metadata += ";" + StringArgumentType.getString(context, "metadata");
+            String metaString = StringArgumentType.getString(context, "metadata");
+            commonMeta.addFromOther(CommonMeta.fromString(metaString));
         }
 
         PendingPayment payment = new PendingPayment();
         payment.to = kristAddress;
         payment.amount = amount;
-        payment.metadata = metadata;
+        payment.metadata = commonMeta.toString();
         payment.createdAt = System.currentTimeMillis();
 
         // if amount > 10 KRO, require confirmation
