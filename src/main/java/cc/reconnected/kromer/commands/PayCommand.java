@@ -69,22 +69,13 @@ public class PayCommand {
         );
     }
 
-    public static String toSemicolonString(Map<String, Object> data) {
-        return data
-            .entrySet()
-            .stream()
-            .map(e -> e.getKey() + "=" + e.getValue())
-            .collect(Collectors.joining(";"));
-    }
-
     private static int sendPayment(CommandContext<CommandSourceStack> context, PendingPayment payment) {
         ServerPlayer player;
         try {
             player = Objects.requireNonNull(context.getSource().getPlayer());
         } catch (NullPointerException e) {
             context.getSource().sendSuccess(
-                    () -> Component.literal("You must be online to use this command.")
-                            .withStyle(ChatFormatting.RED),
+                    () -> Locale.use(Locale.Messages.NOT_ONLINE),
                     false
             );
             return 0;
@@ -136,8 +127,7 @@ public class PayCommand {
             player = Objects.requireNonNull(context.getSource().getPlayer());
         } catch (NullPointerException e) {
             context.getSource().sendSuccess(
-                    () -> Component.literal("You must be online to use this command.")
-                            .withStyle(ChatFormatting.RED),
+                    () -> Locale.use(Locale.Messages.NOT_ONLINE),
                     false
             );
             return 0;
@@ -179,10 +169,7 @@ public class PayCommand {
                 context
                     .getSource()
                     .sendSuccess(
-                        () ->
-                            Component.literal(
-                                "User not found and not a valid address."
-                            ).withStyle(ChatFormatting.RED),
+                        () -> Locale.use(Locale.Messages.PAYMENT_RECIPIENT_NOT_FOUND),
                         false
                     );
                 return 0;
@@ -195,10 +182,7 @@ public class PayCommand {
                 context
                     .getSource()
                     .sendSuccess(
-                        () ->
-                            Component.literal(
-                                "Other user does not have a wallet. They haven't joined recently."
-                            ).withStyle(ChatFormatting.RED),
+                        () -> Locale.use(Locale.Messages.PAYMENT_RECIPIENT_NO_WALLET),
                         false
                     );
                 return 0;
@@ -217,10 +201,7 @@ public class PayCommand {
             context
                 .getSource()
                 .sendSuccess(
-                    () ->
-                        Component.literal(
-                            "You do not have a wallet. This should be impossible. Rejoin/contact a staff member."
-                        ).withStyle(ChatFormatting.RED),
+                    () -> Locale.use(Locale.Messages.PAYMENT_SENDER_NO_WALLET),
                     false
                 );
             return 0;
@@ -253,47 +234,13 @@ public class PayCommand {
             pendingPayments.put(player.getUUID(), payment);
 
             String finalRecipientName = recipientName;
-            Component confirmButton = Component.literal("[Confirm]").withStyle(style ->
-                style
-                    .withColor(ChatFormatting.GREEN)
-                    .withBold(true)
-                    .withClickEvent(
-                        new net.minecraft.network.chat.ClickEvent(
-                            net.minecraft.network.chat.ClickEvent.Action.RUN_COMMAND,
-                            "/confirm_pay"
-                        )
-                    )
-                    .withHoverEvent(
-                        new net.minecraft.network.chat.HoverEvent(
-                            net.minecraft.network.chat.HoverEvent.Action.SHOW_TEXT,
-                            Component.literal(
-                                "Click to confirm payment of " +
-                                amount +
-                                "KRO to " +
-                                finalRecipientName
-                            )
-                        )
-                    )
-            );
+            Component confirmButton = Locale.use(Locale.Messages.PAYMENT_CONFIRMATION_BUTTON, payment.amount, finalRecipientName);
 
             context
                 .getSource()
                 .sendSuccess(
-                    () ->
-                        Component.literal("Are you sure you want to send ")
-                            .withStyle(ChatFormatting.GREEN)
-                            .append(
-                                Component.literal(amount + "KRO ").withStyle(
-                                    ChatFormatting.DARK_GREEN
-                                )
-                            )
-                            .append(Component.literal("to ").withStyle(ChatFormatting.GREEN))
-                            .append(
-                                Component.literal(finalRecipientName).withStyle(
-                                    ChatFormatting.DARK_GREEN
-                                )
-                            )
-                            .append(Component.literal("? ").withStyle(ChatFormatting.GREEN))
+                    () -> Component.empty()
+                            .append(Locale.use(Locale.Messages.PAYMENT_CONFIRMATION, payment.amount, finalRecipientName))
                             .append(confirmButton),
                     false
                 );
@@ -311,8 +258,7 @@ public class PayCommand {
             payment = pendingPayments.remove(player.getUUID());
         } catch (NullPointerException e) {
             context.getSource().sendSuccess(
-                    () -> Component.literal("You must be online to use this command.")
-                            .withStyle(ChatFormatting.RED),
+                    () -> Locale.use(Locale.Messages.NOT_ONLINE),
                     false
             );
             return 0;
