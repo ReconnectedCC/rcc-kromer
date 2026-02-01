@@ -32,7 +32,23 @@ public class Locale {
         WELFARE_NOT_MUTED("<green>Welfare notifications are no longer muted."),
         WELFARE_MUTED("<red>Welfare notifications are now muted."),
         NO_PENDING("<red>No pending payment to confirm."),
+        NOT_ONLINE("<red>You must be online to use this command."),
         ERROR("<red>Error: %s"),
+        PAYMENT_RECIPIENT_NOT_FOUND(
+            "<red>User not found and not a valid address."
+        ),
+        PAYMENT_RECIPIENT_NO_WALLET(
+            "<red>Other user does not have a wallet. They haven't joined recently."
+        ),
+        PAYMENT_SENDER_NO_WALLET(
+            "<red>You do not have a wallet. This should be impossible. Rejoin/contact a staff member."
+        ),
+        PAYMENT_CONFIRMATION(
+            "<green>Are you sure you want to send <dark_green>%.2fKRO</dark_green> to <dark_green>%s</dark_green>?</green> "
+        ),
+        PAYMENT_CONFIRMATION_BUTTON(
+            "<bold><green><click:run_command:'/confirm_pay'><hover:show_text:'Click to confirm payment of %.2fKRO to %s'>[CONFIRM]</hover></click></green></bold>"
+        ),
         PAYMENT_CONFIRMED(
             "<green>Payment of <dark_green>%.2fKRO</dark_green> to <dark_green>%s</dark_green> confirmed.</green>"
         ),
@@ -46,7 +62,7 @@ public class Locale {
             "<green>You have been sent <dark_green>%.2fKRO</dark_green>, from <dark_green>%s</dark_green>."
         ),
         NOTIFY_TRANSFER_MESSAGE(
-                "<green>You have been sent <dark_green>%.2fKRO</dark_green>, from <dark_green>%s</dark_green>, with message: \"%s\"."
+            "<green>You have been sent <dark_green>%.2fKRO</dark_green>, from <dark_green>%s</dark_green>, with message: \"%s\"."
         ),
         OUTGOING_NOT_SEEN(
             "<red>From your account, <dark_red>%.2fKRO</dark_red>, has been sent to <dark_red>%s</dark_red>. Executed at: %s.</red>"

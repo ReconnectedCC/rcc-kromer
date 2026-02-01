@@ -17,6 +17,7 @@ import cc.reconnected.kromer.commands.BalanceCommand;
 import cc.reconnected.kromer.commands.KromerCommand;
 import cc.reconnected.kromer.commands.PayCommand;
 import cc.reconnected.kromer.commands.TransactionsCommand;
+import cc.reconnected.kromer.common.CommonMeta;
 import cc.reconnected.kromer.database.Database;
 import cc.reconnected.kromer.database.Wallet;
 import cc.reconnected.kromer.database.WelfareData;
@@ -25,13 +26,10 @@ import cc.reconnected.kromer.networking.BalanceResponsePacket;
 import cc.reconnected.kromer.networking.TransactionPacket;
 import com.mojang.authlib.GameProfile;
 
-import java.io.File;
-import java.io.IOException;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.net.URI;
 import java.net.URISyntaxException;
-import java.nio.file.Files;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.*;
@@ -40,7 +38,6 @@ import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicReference;
 
 import com.typesafe.config.*;
-import io.netty.buffer.Unpooled;
 import me.alexdevs.solstice.Solstice;
 import me.alexdevs.solstice.modules.afk.AfkModule;
 import me.alexdevs.solstice.modules.afk.data.AfkPlayerData;
@@ -53,7 +50,6 @@ import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
 import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.commands.synchronization.SingletonArgumentInfo;
-import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
@@ -61,7 +57,6 @@ import net.minecraft.util.Tuple;
 import org.flywaydb.core.Flyway;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import cc.reconnected.kromer.common.CommonMetaParser;
 import ovh.sad.jkromer.http.Result;
 import ovh.sad.jkromer.http.addresses.GetAddress;
 import ovh.sad.jkromer.http.internal.CreateWallet;
@@ -358,27 +353,17 @@ public class Kromer implements DedicatedServerModInitializer {
 
         ServerPlayNetworking.send(player, TransactionPacket.ID, TransactionPacket.serialise(transaction, balVal));
 
-        var result = CommonMetaParser.parseWithResult(transaction.metadata);
+        var commonMeta = CommonMeta.fromString(transaction.metadata);
 
-        if(result.success) {
-            if(result.pairs.containsKey("message")) {
-                player.sendSystemMessage(
-                        Locale.useSafe( // use useSafe, removes all <click's and whatnot.
-                                Locale.Messages.NOTIFY_TRANSFER_MESSAGE,
-                                transaction.value,
-                                getNameFromWallet(transaction.from),
-                                result.pairs.get("message")
-                        )
-                );
-            } else { // Don't duplicate code here. However, I don't want to make an extra function, so be it.
-                player.sendSystemMessage(
-                        Locale.use(
-                                Locale.Messages.NOTIFY_TRANSFER,
-                                transaction.value,
-                                getNameFromWallet(transaction.from)
-                        )
-                );
-            }
+        if (commonMeta.keywordEntries.containsKey("message")) {
+            player.sendSystemMessage(
+                    Locale.useSafe( // use useSafe, removes all <click's and whatnot.
+                            Locale.Messages.NOTIFY_TRANSFER_MESSAGE,
+                            transaction.value,
+                            getNameFromWallet(transaction.from),
+                            commonMeta.keywordEntries.get("message")
+                    )
+            );
         } else {
             player.sendSystemMessage(
                     Locale.use(
@@ -388,7 +373,6 @@ public class Kromer implements DedicatedServerModInitializer {
                     )
             );
         }
-
     }
 
     public static void checkTransfers(ServerPlayer player) {

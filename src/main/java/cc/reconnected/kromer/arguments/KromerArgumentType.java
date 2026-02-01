@@ -43,16 +43,36 @@ public class KromerArgumentType implements ArgumentType<BigDecimal> {
         return allowZero;
     }
 
+    private BigDecimal readBigDecimal(StringReader reader) throws CommandSyntaxException {
+        final int start = reader.getCursor();
+        while (reader.canRead() && StringReader.isAllowedNumber(reader.peek())) {
+            reader.skip();
+        }
+
+        final String number = reader.getString().substring(start, reader.getCursor());
+        if (number.isEmpty()) {
+            throw CommandSyntaxException.BUILT_IN_EXCEPTIONS.readerExpectedLong().createWithContext(reader);
+        }
+        try {
+            return new BigDecimal(number);
+        } catch (final NumberFormatException ex) {
+            reader.setCursor(start);
+            throw CommandSyntaxException.BUILT_IN_EXCEPTIONS.readerInvalidLong().createWithContext(reader, number);
+        }
+    }
+
     @Override
     public BigDecimal parse(StringReader reader) throws CommandSyntaxException {
-        float value = reader.readFloat();
-        if (!allowNegativeValues && value < 0) {
+        BigDecimal value = readBigDecimal(reader);
+
+        if (!allowNegativeValues && value.compareTo(BigDecimal.ZERO) < 0) {
             throw CommandSyntaxException.BUILT_IN_EXCEPTIONS.readerInvalidFloat().createWithContext(reader, String.valueOf(value));
         }
-        if (!allowZero && value == 0) {
+        if (!allowZero && value.compareTo(BigDecimal.ZERO) == 0) {
             throw CommandSyntaxException.BUILT_IN_EXCEPTIONS.readerInvalidFloat().createWithContext(reader, String.valueOf(value));
         }
-        return new BigDecimal(value, new MathContext(2, RoundingMode.DOWN));
+
+        return value.setScale(2, RoundingMode.DOWN);
     }
 
     @Override

@@ -8,11 +8,11 @@ import cc.reconnected.kromer.Kromer;
 import cc.reconnected.kromer.Locale;
 import cc.reconnected.kromer.arguments.AddressArgumentType;
 import cc.reconnected.kromer.arguments.KromerArgumentType;
+import cc.reconnected.kromer.common.CommonMeta;
 import cc.reconnected.kromer.database.Wallet;
 
 import com.mojang.authlib.GameProfile;
 import com.mojang.brigadier.CommandDispatcher;
-import com.mojang.brigadier.arguments.FloatArgumentType;
 import com.mojang.brigadier.arguments.StringArgumentType;
 import com.mojang.brigadier.context.CommandContext;
 
@@ -69,184 +69,13 @@ public class PayCommand {
         );
     }
 
-    public static String toSemicolonString(Map<String, Object> data) {
-        return data
-            .entrySet()
-            .stream()
-            .map(e -> e.getKey() + "=" + e.getValue())
-            .collect(Collectors.joining(";"));
-    }
-
-    private static int executePay(CommandContext<CommandSourceStack> context) {
-        pendingPayments.remove(context.getSource().getPlayer().getUUID());
-
-        String recipientInput = AddressArgumentType.getAddress(context, "recipient");
-
-        String kristAddress = null;
-        String recipientName = null;
-
-        if (!Kromer.kromerStatus) {
-            context
-                .getSource()
-                .sendSuccess(() -> Locale.use(Locale.Messages.KROMER_UNAVAILABLE),
-                    false
-                );
-            return 0;
-        }
-
-        if (recipientInput.matches("^k[a-z0-9]{9}$") || recipientInput.matches("^(?:([a-z0-9-_]{1,32})@)?([a-z0-9]{1,64})\\.kro$")) {
-            kristAddress = recipientInput;
-            recipientName = recipientInput;
-        } else {
-            GameProfile otherProfile;
-            try {
-                otherProfile = context
-                    .getSource()
-                    .getServer()
-                    .getProfileCache()
-                    .get(recipientInput)
-                    .orElse(null);
-            } catch (Exception e) {
-                otherProfile = null;
-            }
-
-            if (otherProfile == null) {
-                context
-                    .getSource()
-                    .sendSuccess(
-                        () ->
-                            Component.literal(
-                                "User not found and not a valid address."
-                            ).withStyle(ChatFormatting.RED),
-                        false
-                    );
-                return 0;
-            }
-
-            Wallet otherWallet = Kromer.database.getWallet(
-                otherProfile.getId()
-            );
-            if (otherWallet == null) {
-                context
-                    .getSource()
-                    .sendSuccess(
-                        () ->
-                            Component.literal(
-                                "Other user does not have a wallet. They haven't joined recently."
-                            ).withStyle(ChatFormatting.RED),
-                        false
-                    );
-                return 0;
-            }
-
-            kristAddress = otherWallet.address;
-            recipientName = otherProfile.getName();
-        }
-
-
-        BigDecimal amount = KromerArgumentType.getBigDecimal(context, "amount");
-
-        ServerPlayer thisPlayer = context.getSource().getPlayer();
-
-        Wallet wallet = Kromer.database.getWallet(thisPlayer.getUUID());
-
-        if (wallet == null) {
-            context
-                .getSource()
-                .sendSuccess(
-                    () ->
-                        Component.literal(
-                            "You do not have a wallet. This should be impossible. Rejoin/contact a staff member."
-                        ).withStyle(ChatFormatting.RED),
-                    false
-                );
-            return 0;
-        }
-
-        Map<String, Object> data = new HashMap<>();
-        data.put("return", wallet.address);
-        data.put("username", thisPlayer.getScoreboardName());
-        data.put("useruuid", thisPlayer.getUUID());
-        String metadata = toSemicolonString(data);
-
-        if (context.getNodes().size() > 3) {
-            // 3 nodes: "pay", "player", "amount", and optionally "metadata"
-            metadata += ";" + StringArgumentType.getString(context, "metadata");
-        }
-
-        PendingPayment payment = new PendingPayment();
-        payment.to = kristAddress;
-        payment.amount = amount;
-        payment.metadata = metadata;
-        payment.createdAt = System.currentTimeMillis();
-
-        pendingPayments.put(thisPlayer.getUUID(), payment);
-
-        String finalRecipientName = recipientName;
-        Component confirmButton = Component.literal("[Confirm]").withStyle(style ->
-            style
-                .withColor(ChatFormatting.GREEN)
-                .withBold(true)
-                .withClickEvent(
-                    new net.minecraft.network.chat.ClickEvent(
-                        net.minecraft.network.chat.ClickEvent.Action.RUN_COMMAND,
-                        "/confirm_pay"
-                    )
-                )
-                .withHoverEvent(
-                    new net.minecraft.network.chat.HoverEvent(
-                        net.minecraft.network.chat.HoverEvent.Action.SHOW_TEXT,
-                        Component.literal(
-                            "Click to confirm payment of " +
-                            amount +
-                            "KRO to " +
-                            finalRecipientName
-                        )
-                    )
-                )
-        );
-
-        context
-            .getSource()
-            .sendSuccess(
-                () ->
-                    Component.literal("Are you sure you want to send ")
-                        .withStyle(ChatFormatting.GREEN)
-                        .append(
-                            Component.literal(amount + "KRO ").withStyle(
-                                ChatFormatting.DARK_GREEN
-                            )
-                        )
-                        .append(Component.literal("to ").withStyle(ChatFormatting.GREEN))
-                        .append(
-                            Component.literal(finalRecipientName).withStyle(
-                                ChatFormatting.DARK_GREEN
-                            )
-                        )
-                        .append(Component.literal("? ").withStyle(ChatFormatting.GREEN))
-                        .append(confirmButton),
-                false
-            );
-        return 1;
-    }
-    private static int confirmPay(CommandContext<CommandSourceStack> context) {
-        PendingPayment payment;
+    private static int sendPayment(CommandContext<CommandSourceStack> context, PendingPayment payment) {
         ServerPlayer player;
         try {
             player = Objects.requireNonNull(context.getSource().getPlayer());
-            payment = pendingPayments.remove(player.getUUID());
         } catch (NullPointerException e) {
             context.getSource().sendSuccess(
-                    () -> Component.literal("You must be online to use this command.")
-                            .withStyle(ChatFormatting.RED),
-                    false
-            );
-            return 0;
-        }
-
-        if (payment == null) {
-            context.getSource().sendSuccess(
-                    () -> Locale.use(Locale.Messages.NO_PENDING),
+                    () -> Locale.use(Locale.Messages.NOT_ONLINE),
                     false
             );
             return 0;
@@ -291,4 +120,158 @@ public class PayCommand {
         return 1;
     }
 
+
+    private static int executePay(CommandContext<CommandSourceStack> context) {
+        ServerPlayer player;
+        try {
+            player = Objects.requireNonNull(context.getSource().getPlayer());
+        } catch (NullPointerException e) {
+            context.getSource().sendSuccess(
+                    () -> Locale.use(Locale.Messages.NOT_ONLINE),
+                    false
+            );
+            return 0;
+        }
+
+        pendingPayments.remove(player.getUUID());
+
+        String recipientInput = AddressArgumentType.getAddress(context, "recipient");
+
+        String kristAddress = null;
+        String recipientName = null;
+
+        if (!Kromer.kromerStatus) {
+            context
+                .getSource()
+                .sendSuccess(() -> Locale.use(Locale.Messages.KROMER_UNAVAILABLE),
+                    false
+                );
+            return 0;
+        }
+
+        if (recipientInput.matches("^k[a-z0-9]{9}$") || recipientInput.matches("^(?:([a-z0-9-_]{1,32})@)?([a-z0-9]{1,64})\\.kro$")) {
+            kristAddress = recipientInput;
+            recipientName = recipientInput;
+        } else {
+            GameProfile otherProfile;
+            try {
+                otherProfile = context
+                    .getSource()
+                    .getServer()
+                    .getProfileCache()
+                    .get(recipientInput)
+                    .orElse(null);
+            } catch (Exception e) {
+                otherProfile = null;
+            }
+
+            if (otherProfile == null) {
+                context
+                    .getSource()
+                    .sendSuccess(
+                        () -> Locale.use(Locale.Messages.PAYMENT_RECIPIENT_NOT_FOUND),
+                        false
+                    );
+                return 0;
+            }
+
+            Wallet otherWallet = Kromer.database.getWallet(
+                otherProfile.getId()
+            );
+            if (otherWallet == null) {
+                context
+                    .getSource()
+                    .sendSuccess(
+                        () -> Locale.use(Locale.Messages.PAYMENT_RECIPIENT_NO_WALLET),
+                        false
+                    );
+                return 0;
+            }
+
+            kristAddress = otherWallet.address;
+            recipientName = otherProfile.getName();
+        }
+
+
+        BigDecimal amount = KromerArgumentType.getBigDecimal(context, "amount");
+
+        Wallet wallet = Kromer.database.getWallet(player.getUUID());
+
+        if (wallet == null) {
+            context
+                .getSource()
+                .sendSuccess(
+                    () -> Locale.use(Locale.Messages.PAYMENT_SENDER_NO_WALLET),
+                    false
+                );
+            return 0;
+        }
+
+        CommonMeta commonMeta = new CommonMeta();
+
+        if (recipientInput.matches("^(?:([a-z0-9-_]{1,32})@)?([a-z0-9]{1,64})\\.kro$")) {
+            commonMeta.positionalEntries.add(recipientInput);
+        }
+
+        commonMeta.keywordEntries.put("return", wallet.address);
+        commonMeta.keywordEntries.put("username", player.getScoreboardName());
+        commonMeta.keywordEntries.put("useruuid", player.getUUID().toString());
+
+        if (context.getNodes().size() > 3) {
+            // 3 nodes: "pay", "player", "amount", and optionally "metadata"
+            String metaString = StringArgumentType.getString(context, "metadata");
+            commonMeta.addFromOther(CommonMeta.fromString(metaString));
+        }
+
+        PendingPayment payment = new PendingPayment();
+        payment.to = kristAddress;
+        payment.amount = amount;
+        payment.metadata = commonMeta.toString();
+        payment.createdAt = System.currentTimeMillis();
+
+        // if amount > 10 KRO, require confirmation
+        if (payment.amount.compareTo(new BigDecimal(10)) > 0) {
+            pendingPayments.put(player.getUUID(), payment);
+
+            String finalRecipientName = recipientName;
+            Component confirmButton = Locale.use(Locale.Messages.PAYMENT_CONFIRMATION_BUTTON, payment.amount, finalRecipientName);
+
+            context
+                .getSource()
+                .sendSuccess(
+                    () -> Component.empty()
+                            .append(Locale.use(Locale.Messages.PAYMENT_CONFIRMATION, payment.amount, finalRecipientName))
+                            .append(confirmButton),
+                    false
+                );
+            return 1;
+        } else {
+            return sendPayment(context, payment);
+        }
+    }
+
+    private static int confirmPay(CommandContext<CommandSourceStack> context) {
+        PendingPayment payment;
+        ServerPlayer player;
+        try {
+            player = Objects.requireNonNull(context.getSource().getPlayer());
+            payment = pendingPayments.remove(player.getUUID());
+        } catch (NullPointerException e) {
+            context.getSource().sendSuccess(
+                    () -> Locale.use(Locale.Messages.NOT_ONLINE),
+                    false
+            );
+            return 0;
+        }
+
+        if (payment == null) {
+            context.getSource().sendSuccess(
+                    () -> Locale.use(Locale.Messages.NO_PENDING),
+                    false
+            );
+            return 0;
+        }
+
+        return sendPayment(context, payment);
+    }
 }
