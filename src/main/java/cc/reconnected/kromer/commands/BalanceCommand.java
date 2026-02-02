@@ -7,7 +7,6 @@ import static net.minecraft.commands.Commands.literal;
 import cc.reconnected.kromer.Kromer;
 import cc.reconnected.kromer.Locale;
 import cc.reconnected.kromer.arguments.AddressArgumentType;
-import cc.reconnected.kromer.arguments.KromerArgumentType;
 import cc.reconnected.kromer.database.Wallet;
 import com.mojang.authlib.GameProfile;
 import com.mojang.brigadier.CommandDispatcher;
@@ -22,8 +21,6 @@ import java.util.concurrent.CompletableFuture;
 import net.minecraft.commands.CommandBuildContext;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
-import net.minecraft.server.level.ServerPlayer;
-import ovh.sad.jkromer.models.Address;
 
 public class BalanceCommand {
     public static void register(
@@ -56,16 +53,15 @@ public class BalanceCommand {
             if (recipientInput.matches("^k[a-z0-9]{9}$") || recipientInput.matches("^(?:([a-z0-9-_]{1,32})@)?([a-z0-9]{1,64})\\.kro$")) {
                 kristAddress = recipientInput;
             } else {
-                GameProfile otherProfile;
+                GameProfile otherProfile = null;
                 try {
-                    otherProfile = context
-                            .getSource()
-                            .getServer()
-                            .getProfileCache()
+                    otherProfile = Objects.requireNonNull(context
+                                    .getSource()
+                                    .getServer()
+                                    .getProfileCache())
                             .get(recipientInput)
                             .orElse(null);
-                } catch (Exception e) {
-                    otherProfile = null;
+                } catch (Exception ignored) {
                 }
 
                 if (otherProfile == null) {

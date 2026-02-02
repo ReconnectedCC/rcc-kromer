@@ -12,7 +12,6 @@ import cc.reconnected.kromer.database.Wallet;
 import com.mojang.brigadier.CommandDispatcher;
 import com.mojang.brigadier.arguments.IntegerArgumentType;
 import com.mojang.brigadier.context.CommandContext;
-import com.mojang.brigadier.exceptions.CommandSyntaxException;
 import eu.pb4.placeholders.api.TextParserUtils;
 import ovh.sad.jkromer.http.addresses.GetAddressTransactions;
 import ovh.sad.jkromer.http.Result;
@@ -24,7 +23,6 @@ import java.util.concurrent.CompletableFuture;
 import net.minecraft.commands.CommandBuildContext;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
-import net.minecraft.server.level.ServerPlayer;
 
 
 public class TransactionsCommand {
@@ -43,8 +41,12 @@ public class TransactionsCommand {
                         )
         );
     }
-    public static int checkTransactions(CommandContext<CommandSourceStack> context) throws CommandSyntaxException {
-        Wallet wallet = Kromer.database.getWallet(context.getSource().getPlayer().getUUID());
+    public static int checkTransactions(CommandContext<CommandSourceStack> context) {
+        Wallet wallet = null;
+        try {
+            wallet = Kromer.database.getWallet(Objects.requireNonNull(context.getSource().getPlayer()).getUUID());
+        } catch (Exception ignored) {
+        }
 
         if (!Kromer.kromerStatus) {
             context.getSource().sendSuccess(() -> Locale.use(Locale.Messages.KROMER_UNAVAILABLE), false);
@@ -68,8 +70,9 @@ public class TransactionsCommand {
         int offset = (page - 1) * 10;
         int finalPage = page;
 
+        Wallet finalWallet = wallet;
         CompletableFuture
-                .supplyAsync(() -> GetAddressTransactions.execute(wallet.address, false, 10, offset), NETWORK_EXECUTOR)
+                .supplyAsync(() -> GetAddressTransactions.execute(finalWallet.address, false, 10, offset), NETWORK_EXECUTOR)
                 .thenCompose(future -> future) // unwrap nested CompletableFuture<Result<...>>
                 .whenComplete((result, throwable) -> {
                     source.getServer().execute(() -> {

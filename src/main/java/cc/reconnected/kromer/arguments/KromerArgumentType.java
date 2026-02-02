@@ -6,7 +6,6 @@ import com.mojang.brigadier.context.CommandContext;
 import com.mojang.brigadier.exceptions.CommandSyntaxException;
 
 import java.math.BigDecimal;
-import java.math.MathContext;
 import java.math.RoundingMode;
 import java.util.Arrays;
 import java.util.Collection;
@@ -72,7 +71,7 @@ public class KromerArgumentType implements ArgumentType<BigDecimal> {
             throw CommandSyntaxException.BUILT_IN_EXCEPTIONS.readerInvalidFloat().createWithContext(reader, String.valueOf(value));
         }
 
-        return value.setScale(2, RoundingMode.DOWN);
+        return value.setScale(2, RoundingMode.HALF_EVEN);
     }
 
     @Override

@@ -1,6 +1,5 @@
 package cc.reconnected.kromer.database;
 
-import cc.reconnected.kromer.Kromer;
 import java.sql.*;
 import java.util.UUID;
 import net.minecraft.util.Tuple;
@@ -145,5 +144,9 @@ public class Database {
             e.printStackTrace();
         }
         return null;
+    }
+
+    public void close() throws SQLException {
+        connection.close();
     }
 }

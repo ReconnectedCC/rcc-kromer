@@ -12,8 +12,6 @@ import me.shedaniel.autoconfig.AutoConfig;
 import me.shedaniel.autoconfig.ConfigHolder;
 import me.shedaniel.autoconfig.serializer.GsonConfigSerializer;
 import net.fabricmc.api.ClientModInitializer;
-import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientEntityEvents;
-import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.fabricmc.fabric.api.client.screen.v1.ScreenEvents;
@@ -50,9 +48,7 @@ public class mainClient implements ClientModInitializer {
         AutoConfig.register(KromerClientConfig.class, GsonConfigSerializer::new);
         ConfigHolder<KromerClientConfig> config = AutoConfig.getConfigHolder(KromerClientConfig.class);
 
-        ClientPlayConnectionEvents.JOIN.register((packetListener, sender, client) -> {
-                ClientPlayNetworking.send(BalanceRequestPacket.ID, new FriendlyByteBuf(Unpooled.buffer()));
-        });
+        ClientPlayConnectionEvents.JOIN.register((packetListener, sender, client) -> ClientPlayNetworking.send(BalanceRequestPacket.ID, new FriendlyByteBuf(Unpooled.buffer())));
 
 
         ClientPlayNetworking.registerGlobalReceiver(TransactionPacket.ID, (client, handler, buf, responseSender) -> {
@@ -70,14 +66,17 @@ public class mainClient implements ClientModInitializer {
             }
         });
 
-        ClientPlayNetworking.registerGlobalReceiver(BalanceResponsePacket.ID, (client, handler, buf, responseSender) -> {
-            balance.set(new BigDecimal(buf.readUtf())
-                    .setScale(2, RoundingMode.HALF_EVEN));
-        });
+        ClientPlayNetworking.registerGlobalReceiver(BalanceResponsePacket.ID, (client, handler, buf, responseSender) -> balance.set(new BigDecimal(buf.readUtf())
+                .setScale(2, RoundingMode.HALF_EVEN)));
 
         ScreenEvents.AFTER_INIT.register((mc, screen, sw, sh) -> {
             if (screen instanceof PauseScreen) {
                 ScreenEvents.afterRender(screen).register((scr, guiGraphics, mouseX, mouseY, tickDelta) -> {
+                    // if singleplayer, return
+                    if (mc.isLocalServer()) {
+                        return;
+                    }
+
                     if(config.getConfig().balanceDisplay) {
                         int x = 10;
                         int y = 10;
@@ -86,10 +85,10 @@ public class mainClient implements ClientModInitializer {
                         x += mc.font.width("Balance: ");
 
                         BigDecimal bal = balance.get();
-                        if (Objects.equals(bal.toString(), "-1")) {
-                            guiGraphics.drawString(mc.font, "Loading..", x, y, 0xAAAAAA, true);
-                        } else if (Objects.equals(bal.toString(), "-2")) {
-                            guiGraphics.drawString(mc.font, "Error..", x, y, 0xAA0000, true);
+                        if (Objects.equals(bal.toString(), "-1.0")) {
+                            guiGraphics.drawString(mc.font, "Loading...", x, y, 0xAAAAAA, true);
+                        } else if (Objects.equals(bal.toString(), "-2.0")) {
+                            guiGraphics.drawString(mc.font, "Error!", x, y, 0xAA0000, true);
                         } else {
                             guiGraphics.drawString(mc.font, bal + "KRO", x, y, 0x00AA00, true);
                         }

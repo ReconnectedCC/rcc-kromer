@@ -30,6 +30,7 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.sql.SQLException;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.*;
@@ -69,13 +70,14 @@ public class Kromer implements DedicatedServerModInitializer {
     public static Logger LOGGER = LoggerFactory.getLogger("rcc-kromer");
     public static Database database = new Database();
     public static final ExecutorService NETWORK_EXECUTOR = Executors.newCachedThreadPool();
+    public static final ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
 
     public static ConfigurationModel config;
     private static KromerWebsockets client;
 
     public static Boolean kromerStatus = false;
     public static int welfareQueued = 0;
-    public static ConcurrentLRUCache<String, BigDecimal> balanceCache = new ConcurrentLRUCache<String, BigDecimal>(500); // 500 is arbitary
+    public static ConcurrentLRUCache<String, BigDecimal> balanceCache = new ConcurrentLRUCache<>(500); // 500 is arbitary
 
     private static Kromer instance = null;
 
@@ -140,47 +142,64 @@ public class Kromer implements DedicatedServerModInitializer {
             WelfareData.class,
             WelfareData::new
         );
-        ServerPlayNetworking.registerGlobalReceiver(BalanceRequestPacket.ID, (server, player, handler, buf, responseSender) -> {
-            server.execute(() -> {
-                Wallet wallet = database.getWallet(player.getUUID());
-                if(wallet == null) {
-                    LOGGER.error("BalanceRequestPacket: user " + player.getUUID().toString() + " has no valid wallet.");
-                    return;
-                }
+        ServerPlayNetworking.registerGlobalReceiver(BalanceRequestPacket.ID, (server, player, handler, buf, responseSender) -> server.execute(() -> {
+            Wallet wallet = database.getWallet(player.getUUID());
+            if(wallet == null) {
+                LOGGER.error("BalanceRequestPacket: user " + player.getUUID().toString() + " has no valid wallet.");
+                return;
+            }
 
-                AtomicReference<BigDecimal> balance = new AtomicReference<>(balanceCache.get(wallet.address));
-                if(balance.get() == null) {
-                    CompletableFuture
-                            .supplyAsync(() -> GetAddress.execute(wallet.address), NETWORK_EXECUTOR)
-                            .thenCompose(future -> future)
-                            .whenComplete((b, ex) -> {
-                                if (ex != null) {
-                                    LOGGER.error("BalanceRequestPacket: for user " + player.getUUID().toString() + " failed balance retrival due to " + ex.getMessage());
-                                    return;
-                                }
+            AtomicReference<BigDecimal> balance = new AtomicReference<>(balanceCache.get(wallet.address));
+            if(balance.get() == null) {
+                CompletableFuture
+                        .supplyAsync(() -> GetAddress.execute(wallet.address), NETWORK_EXECUTOR)
+                        .thenCompose(future -> future)
+                        .whenComplete((b, ex) -> {
+                            if (ex != null) {
+                                LOGGER.error("BalanceRequestPacket: for user " + player.getUUID().toString() + " failed balance retrival due to " + ex.getMessage());
+                                return;
+                            }
 
-                                if (b instanceof Result.Ok<GetAddress.GetAddressBody> ok) {
-                                    balance.set(ok.value().address.balance);
-                                    balanceCache.put(wallet.address, ok.value().address.balance);
-                                } else if (b instanceof Result.Err<GetAddress.GetAddressBody> err) {
-                                    LOGGER.error("BalanceRequestPacket: for user " + player.getUUID().toString() + " failed balance retrival due to " + err.toString());
-                                    return;
-                                }
-                            });
-                }
+                            if (b instanceof Result.Ok<GetAddress.GetAddressBody> ok) {
+                                balance.set(ok.value().address.balance);
+                                balanceCache.put(wallet.address, ok.value().address.balance);
+                            } else if (b instanceof Result.Err<GetAddress.GetAddressBody> err) {
+                                LOGGER.error("BalanceRequestPacket: for user " + player.getUUID().toString() + " failed balance retrival due to " + err.toString());
+                                return;
+                            }
+                        });
+            }
 
-                if(balance.get() == null) {
-                    return;
-                }
+            if(balance.get() == null) {
+                return;
+            }
 
-                ServerPlayNetworking.send(player, BalanceResponsePacket.ID, BalanceResponsePacket.serialise(balance.get()));
-            });
-        });
+            ServerPlayNetworking.send(player, BalanceResponsePacket.ID, BalanceResponsePacket.serialise(balance.get()));
+        }));
         ServerLifecycleEvents.SERVER_STARTED.register(server -> {
             try {
                 connectWebsocket(server);
             } catch (URISyntaxException u) {
                 u.printStackTrace();
+            }
+        });
+
+        ServerLifecycleEvents.SERVER_STOPPING.register(server -> {
+            if (scheduler != null) {
+                scheduler.shutdown();
+            }
+            if (NETWORK_EXECUTOR != null) {
+                NETWORK_EXECUTOR.shutdown();
+            }
+            if (client != null) {
+                client.close();
+            }
+            if (database != null) {
+                try {
+                    database.close();
+                } catch (SQLException e) {
+                    throw new RuntimeException(e);
+                }
             }
         });
 
@@ -212,8 +231,6 @@ public class Kromer implements DedicatedServerModInitializer {
         jKromer.endpoint_raw = config.getUrl();
         jKromer.endpoint = jKromer.endpoint_raw + "/api/krist";
 
-        ScheduledExecutorService scheduler =
-            Executors.newSingleThreadScheduledExecutor();
 
         long initialDelay = getDelayUntilNextHourInSeconds();
         long oneHour = 3600; // seconds
@@ -276,9 +293,7 @@ public class Kromer implements DedicatedServerModInitializer {
         client.server
             .getPlayerList()
             .getPlayers()
-            .forEach(p -> {
-               executeWelfareForPlayer(p,finalWelfare);
-            });
+            .forEach(p -> executeWelfareForPlayer(p,finalWelfare));
     }
     private static void executeWelfareForPlayer(ServerPlayer player, BigDecimal baseWelfare) {
         if (baseWelfare.equals(BigDecimal.valueOf(0))) {
@@ -297,7 +312,7 @@ public class Kromer implements DedicatedServerModInitializer {
         int interval = 3600; // one hour, in seconds, since rcc-kromer does hourly welfare.
         AfkPlayerData solsticeData = Solstice.modules
                 .getModule(AfkModule.class)
-                .get()
+                .orElseThrow()
                 .getPlayerData(player.getUUID());
         int activeTime = solsticeData.activeTime;
         var oldActiveTime = welfareData.oldActiveTime;
@@ -432,7 +447,7 @@ public class Kromer implements DedicatedServerModInitializer {
     ) {
         AfkPlayerData solsticeData = Solstice.modules
                 .getModule(AfkModule.class)
-                .get()
+                .orElseThrow()
                 .getPlayerData(uuid);
         WelfareData welfareData = Solstice.playerData
                 .get(player.getUUID())

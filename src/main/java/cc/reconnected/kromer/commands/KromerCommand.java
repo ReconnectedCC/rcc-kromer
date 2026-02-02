@@ -11,9 +11,6 @@ import cc.reconnected.kromer.database.Wallet;
 import cc.reconnected.kromer.database.WelfareData;
 import com.mojang.brigadier.Command;
 import com.mojang.brigadier.CommandDispatcher;
-import com.mojang.brigadier.arguments.FloatArgumentType;
-import com.mojang.brigadier.arguments.IntegerArgumentType;
-import com.mojang.brigadier.builder.LiteralArgumentBuilder;
 import java.util.Objects;
 import me.alexdevs.solstice.Solstice;
 import net.fabricmc.loader.api.FabricLoader;
@@ -42,13 +39,13 @@ public class KromerCommand {
         var versionCommand = literal("version").executes(context -> {
             String modVersion = FabricLoader.getInstance()
                     .getModContainer("rcc-kromer")
-                    .get()
+                    .orElseThrow()
                     .getMetadata()
                     .getVersion()
                     .getFriendlyString();
 
             CompletableFuture
-                    .supplyAsync(() -> GetMotd.execute(), NETWORK_EXECUTOR)
+                    .supplyAsync(GetMotd::execute, NETWORK_EXECUTOR)
                     .thenCompose(f -> f)
                     .whenComplete((b, ex) -> {
                         if (ex != null) {
@@ -77,12 +74,17 @@ public class KromerCommand {
         });
 
         var infoCommand = literal("info").executes(context -> {
-            Wallet wallet = Kromer.database.getWallet(context.getSource().getPlayer().getUUID());
+            Wallet wallet = null;
+            try {
+                wallet = Kromer.database.getWallet(Objects.requireNonNull(context.getSource().getPlayer()).getUUID());
+            } catch (NullPointerException ignored) {
+            }
             if (wallet == null) return 0;
 
+            Wallet finalWallet = wallet;
             context.getSource().sendSuccess(() ->
                     Locale.use(Locale.Messages.KROMER_INFORMATION,
-                            wallet.address, wallet.address, wallet.privatekey, wallet.privatekey), false
+                            finalWallet.address, finalWallet.address, finalWallet.privatekey, finalWallet.privatekey), false
             );
 
             if (!Kromer.kromerStatus) {
@@ -161,9 +163,15 @@ public class KromerCommand {
         });
 
         var optInOfWelfare = literal("optIn").executes(context -> {
-            WelfareData welfareData = Solstice.playerData
-                    .get(context.getSource().getPlayer().getUUID())
-                    .getData(WelfareData.class);
+            WelfareData welfareData;
+            try {
+                welfareData = Solstice.playerData
+                        .get(Objects.requireNonNull(context.getSource().getPlayer()).getUUID())
+                        .getData(WelfareData.class);
+            } catch (NullPointerException e) {
+                return 0;
+            }
+
 
             if (welfareData.optedOut) {
                 welfareData.optedOut = false;
@@ -176,9 +184,15 @@ public class KromerCommand {
 
         var optOutOfWelfare = literal("optOut")
                 .executes(context -> {
-                    WelfareData welfareData = Solstice.playerData
-                            .get(context.getSource().getPlayer().getUUID())
-                            .getData(WelfareData.class);
+                    WelfareData welfareData;
+                    try {
+                        welfareData = Solstice.playerData
+                                .get(Objects.requireNonNull(context.getSource().getPlayer()).getUUID())
+                                .getData(WelfareData.class);
+                    } catch (NullPointerException e) {
+                        return 0;
+                    }
+
 
                     if (welfareData.optedOut) {
                         context.getSource().sendSuccess(() -> Locale.use(Locale.Messages.ALREADY_OPTED_OUT), false);
@@ -193,9 +207,15 @@ public class KromerCommand {
                     return 1;
                 })
                 .then(literal("confirm").executes(context -> {
-                    WelfareData welfareData = Solstice.playerData
-                            .get(context.getSource().getPlayer().getUUID())
-                            .getData(WelfareData.class);
+                    WelfareData welfareData;
+                    try {
+                        welfareData = Solstice.playerData
+                                .get(Objects.requireNonNull(context.getSource().getPlayer()).getUUID())
+                                .getData(WelfareData.class);
+                    } catch (NullPointerException e) {
+                        return 0;
+                    }
+
 
                     welfareData.optedOut = true;
 
@@ -218,11 +238,9 @@ public class KromerCommand {
                                                     "serverwelf", ok.value().address.balance,
                                                     "[rcc-kromer] relinquishing all kromer"), NETWORK_EXECUTOR)
                                             .thenCompose(f2 -> f2)
-                                            .whenComplete((z, ex2) -> {
-                                                context.getSource().getServer().execute(() ->
-                                                        context.getSource().sendSuccess(() -> Locale.use(Locale.Messages.OPTED_OUT_WELFARE), false)
-                                                );
-                                            });
+                                            .whenComplete((z, ex2) -> context.getSource().getServer().execute(() ->
+                                                    context.getSource().sendSuccess(() -> Locale.use(Locale.Messages.OPTED_OUT_WELFARE), false)
+                                            ));
                                 }
                             });
                     return 1;

@@ -38,11 +38,10 @@ public class AddressArgumentType implements ArgumentType<String> {
             }
             reader.skip();
         }
-        String result = reader.getString().substring(start, reader.getCursor());
         //if (!(result.matches("^k[a-z0-9]{9}$") || result.matches("^(?:([a-z0-9-_]{1,32})@)?([a-z0-9]{1,64})\\.kro$"))) {
         //    throw new SimpleCommandExceptionType(new LiteralMessage("Not a valid address or (meta)name")).createWithContext(reader);
         //}
-        return result;
+        return reader.getString().substring(start, reader.getCursor());
     }
 
     private AddressArgumentType() {}
