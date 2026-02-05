@@ -150,6 +150,7 @@ public class Kromer implements DedicatedServerModInitializer {
             }
 
             AtomicReference<BigDecimal> balance = new AtomicReference<>(balanceCache.get(wallet.address));
+
             if(balance.get() == null) {
                 CompletableFuture
                         .supplyAsync(() -> GetAddress.execute(wallet.address), NETWORK_EXECUTOR)
@@ -163,18 +164,12 @@ public class Kromer implements DedicatedServerModInitializer {
                             if (b instanceof Result.Ok<GetAddress.GetAddressBody> ok) {
                                 balance.set(ok.value().address.balance);
                                 balanceCache.put(wallet.address, ok.value().address.balance);
-                            } else if (b instanceof Result.Err<GetAddress.GetAddressBody> err) {
-                                LOGGER.error("BalanceRequestPacket: for user " + player.getUUID().toString() + " failed balance retrival due to " + err.toString());
-                                return;
+                                ServerPlayNetworking.send(player, BalanceResponsePacket.ID, BalanceResponsePacket.serialise(ok.value().address.balance));
                             }
                         });
+            } else {
+                ServerPlayNetworking.send(player, BalanceResponsePacket.ID, BalanceResponsePacket.serialise(balance.get()));
             }
-
-            if(balance.get() == null) {
-                return;
-            }
-
-            ServerPlayNetworking.send(player, BalanceResponsePacket.ID, BalanceResponsePacket.serialise(balance.get()));
         }));
         ServerLifecycleEvents.SERVER_STARTED.register(server -> {
             try {
@@ -230,7 +225,6 @@ public class Kromer implements DedicatedServerModInitializer {
 
         jKromer.endpoint_raw = config.getUrl();
         jKromer.endpoint = jKromer.endpoint_raw + "/api/krist";
-
 
         long initialDelay = getDelayUntilNextHourInSeconds();
         long oneHour = 3600; // seconds
@@ -332,9 +326,19 @@ public class Kromer implements DedicatedServerModInitializer {
         if(!welfareData.optedOut) {
             CompletableFuture
                     .supplyAsync(() -> GiveMoney.execute(config.getInternal_key(), finalWelfare, wallet.address), NETWORK_EXECUTOR)
-                    .thenCompose(f -> f);
+                    .thenCompose(future -> future)
+                    .whenComplete((b, ex) -> {
+                        if (ex != null) {
+                            return;
+                        }
+
+                        if (b instanceof Result.Ok<GiveMoney.GiveMoneyResponse> ok) {
+                            balanceCache.put(wallet.address, ok.value().wallet.balance);
+                            ServerPlayNetworking.send(player, BalanceResponsePacket.ID, BalanceResponsePacket.serialise(ok.value().wallet.balance));
+                            welfareData.oldActiveTime = activeTime;
+                        }
+                    });
         }
-        welfareData.oldActiveTime = activeTime;
     }
     public static String getNameFromWallet(String address) {
         String userName = address; // if from is

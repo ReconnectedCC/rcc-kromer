@@ -8,9 +8,11 @@ import cc.reconnected.kromer.Kromer;
 import cc.reconnected.kromer.Locale;
 import cc.reconnected.kromer.arguments.AddressArgumentType;
 import cc.reconnected.kromer.database.Wallet;
+import cc.reconnected.kromer.networking.BalanceResponsePacket;
 import com.mojang.authlib.GameProfile;
 import com.mojang.brigadier.CommandDispatcher;
 import com.mojang.brigadier.context.CommandContext;
+import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
 import net.minecraft.ChatFormatting;
 import net.minecraft.network.chat.Component;
 import ovh.sad.jkromer.http.Result;
@@ -22,7 +24,7 @@ import net.minecraft.commands.CommandBuildContext;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
 
-public class BalanceCommand {
+public class        BalanceCommand {
     public static void register(
         CommandDispatcher<CommandSourceStack> dispatcher,
         CommandBuildContext registryAccess,
@@ -152,6 +154,8 @@ public class BalanceCommand {
                                 Kromer.balanceCache.put(kristAddress, ok.value().address.balance);
                             });
                         }
+
+                        ServerPlayNetworking.send(player, BalanceResponsePacket.ID, BalanceResponsePacket.serialise(ok.value().address.balance));
                     } else if (b instanceof Result.Err<GetAddress.GetAddressBody> err) {
                         source.getServer().execute(() ->
                                 source.sendSuccess(

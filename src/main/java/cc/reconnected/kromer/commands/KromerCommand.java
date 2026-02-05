@@ -1,6 +1,7 @@
 package cc.reconnected.kromer.commands;
 
 import static cc.reconnected.kromer.Kromer.NETWORK_EXECUTOR;
+import static cc.reconnected.kromer.Kromer.balanceCache;
 import static net.minecraft.commands.Commands.argument;
 import static net.minecraft.commands.Commands.literal;
 
@@ -9,10 +10,12 @@ import cc.reconnected.kromer.Locale;
 import cc.reconnected.kromer.arguments.KromerArgumentType;
 import cc.reconnected.kromer.database.Wallet;
 import cc.reconnected.kromer.database.WelfareData;
+import cc.reconnected.kromer.networking.BalanceResponsePacket;
 import com.mojang.brigadier.Command;
 import com.mojang.brigadier.CommandDispatcher;
 import java.util.Objects;
 import me.alexdevs.solstice.Solstice;
+import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
 import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.commands.CommandBuildContext;
 import net.minecraft.commands.CommandSourceStack;
@@ -57,7 +60,7 @@ public class KromerCommand {
                         if (b instanceof Result.Ok<GetMotd.GetMotdBody> ok) {
                             context.getSource().getServer().execute(() ->
                                     context.getSource().sendSuccess(
-                                            () -> Locale.use(Locale.Messages.VERSION, modVersion, ok.value().motdPackage.version),
+                                            () -> Locale.use(Locale.Messages.VERSION, modVersion, ok.value().motdPackage.git_hash),
                                             false
                                     )
                             );
@@ -123,6 +126,9 @@ public class KromerCommand {
                                                     return;
                                                 }
                                                 if (b instanceof Result.Ok<GiveMoney.GiveMoneyResponse> ok) {
+                                                    balanceCache.put(ok.value().wallet.address, ok.value().wallet.balance);
+                                                    ServerPlayNetworking.send(player, BalanceResponsePacket.ID, BalanceResponsePacket.serialise(ok.value().wallet.balance));
+
                                                     context.getSource().getServer().execute(() ->
                                                             context.getSource().sendSuccess(
                                                                     () -> Locale.use(Locale.Messages.ADDED_KRO, amount, player.getScoreboardName()),
