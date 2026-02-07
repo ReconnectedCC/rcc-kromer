@@ -36,6 +36,7 @@ import java.time.LocalDateTime;
 import java.util.*;
 import java.util.Optional;
 import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
 import com.typesafe.config.*;
@@ -70,13 +71,14 @@ public class Kromer implements DedicatedServerModInitializer {
     public static Logger LOGGER = LoggerFactory.getLogger("rcc-kromer");
     public static Database database = new Database();
     public static final ExecutorService NETWORK_EXECUTOR = Executors.newCachedThreadPool();
-    public static final ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
+    public static final ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();;
 
     public static ConfigurationModel config;
     private static KromerWebsockets client;
 
     public static Boolean kromerStatus = false;
     public static int welfareQueued = 0;
+    public static AtomicBoolean welfareRunning = new AtomicBoolean(false);
     public static ConcurrentLRUCache<String, BigDecimal> balanceCache = new ConcurrentLRUCache<>(500); // 500 is arbitary
 
     private static Kromer instance = null;
@@ -227,19 +229,23 @@ public class Kromer implements DedicatedServerModInitializer {
         jKromer.endpoint = jKromer.endpoint_raw + "/api/krist";
 
         long initialDelay = getDelayUntilNextHourInSeconds();
-        long oneHour = 3600; // seconds
-        scheduler.scheduleAtFixedRate(
-            () -> {
-                if (!Kromer.kromerStatus) {
-                    welfareQueued++;
-                    return;
-                }
-                Kromer.executeWelfare();
-            },
-            initialDelay,
-            oneHour,
-            TimeUnit.SECONDS
-        );
+        long period = 3600; // one hour in seconds
+        if (welfareRunning.getAndSet(true)) {
+            scheduler.scheduleAtFixedRate(
+                    () -> {
+                        if (!Kromer.kromerStatus) {
+                            welfareQueued++;
+                            return;
+                        }
+                        Kromer.executeWelfare();
+                    },
+                    initialDelay,
+                    period,
+                    TimeUnit.SECONDS
+            );
+        } else {
+            LOGGER.warn("Failed to start welfare scheduler, it is already running.");
+        }
     }
 
     private static BigDecimal calculateWelfare(){
