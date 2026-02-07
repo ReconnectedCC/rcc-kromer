@@ -71,7 +71,7 @@ public class Kromer implements DedicatedServerModInitializer {
     public static Logger LOGGER = LoggerFactory.getLogger("rcc-kromer");
     public static Database database = new Database();
     public static final ExecutorService NETWORK_EXECUTOR = Executors.newCachedThreadPool();
-    public static final ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();;
+    public static final ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
 
     public static ConfigurationModel config;
     private static KromerWebsockets client;
