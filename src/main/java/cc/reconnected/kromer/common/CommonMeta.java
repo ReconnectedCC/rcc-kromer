@@ -1,6 +1,7 @@
 package cc.reconnected.kromer.common;
 
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -21,7 +22,8 @@ public class CommonMeta {
         this.positionalEntries = positionalEntries;
     }
 
-    public static CommonMeta fromString(@NotNull String input) {
+    public static CommonMeta fromString(@Nullable String input) {
+        if (input == null || input.isEmpty()) return new CommonMeta();
         HashMap<String, String> keywordEntries = new HashMap<>();
         List<String> positionalEntries = new ArrayList<>();
 
