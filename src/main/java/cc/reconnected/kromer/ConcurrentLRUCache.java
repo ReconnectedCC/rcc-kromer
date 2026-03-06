@@ -1,3 +1,5 @@
+// Based on https://medium.com/@alokkmaurya7/implement-thread-safe-lru-cache-5be57022d9a4.
+
 package cc.reconnected.kromer;
 
 import java.util.*;

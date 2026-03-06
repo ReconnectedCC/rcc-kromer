@@ -372,8 +372,12 @@ public class Kromer implements DedicatedServerModInitializer {
         if(balanceCache == null) {
             balVal = BigDecimal.valueOf(-1f);
         } else {
-            balVal = balVal.add(transaction.value);
-            Kromer.balanceCache.put(transaction.to, balVal);
+            if(balVal == null) {
+                balVal = BigDecimal.valueOf(-1f);
+            } else {
+                balVal = balVal.add(transaction.value);
+                Kromer.balanceCache.put(transaction.to, balVal);
+            }
         }
 
         ServerPlayNetworking.send(player, TransactionPacket.ID, TransactionPacket.serialise(transaction, balVal));
