@@ -379,8 +379,16 @@ public class Kromer implements DedicatedServerModInitializer {
         ServerPlayNetworking.send(player, TransactionPacket.ID, TransactionPacket.serialise(transaction, balVal));
 
         var commonMeta = CommonMeta.fromString(transaction.metadata);
-
-        if (commonMeta.keywordEntries.containsKey("message")) {
+        if(commonMeta.keywordEntries.containsKey("error")) {
+            player.sendSystemMessage(
+                    Locale.useSafe(
+                            Locale.Messages.NOTIFY_TRANSFER_MESSAGE_ERROR,
+                            transaction.value,
+                            getNameFromWallet(transaction.from),
+                            commonMeta.keywordEntries.get("error")
+                    )
+            );
+        } else if (commonMeta.keywordEntries.containsKey("message")) {
             player.sendSystemMessage(
                     Locale.useSafe( // use useSafe, removes all <click's and whatnot.
                             Locale.Messages.NOTIFY_TRANSFER_MESSAGE,

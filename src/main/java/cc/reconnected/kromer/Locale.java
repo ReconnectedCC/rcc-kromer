@@ -64,6 +64,9 @@ public class Locale {
         NOTIFY_TRANSFER_MESSAGE(
             "<green>You have been sent <dark_green>%.2fKRO</dark_green>, from <dark_green>%s</dark_green>, with message: \"%s\"."
         ),
+        NOTIFY_TRANSFER_MESSAGE_ERROR(
+                "<green>You have been sent <dark_green>%.2fKRO</dark_green>, from <dark_green>%s</dark_green>, with error: <red>\"%s\"."
+        ),
         OUTGOING_NOT_SEEN(
             "<red>From your account, <dark_red>%.2fKRO</dark_red>, has been sent to <dark_red>%s</dark_red>. Executed at: %s.</red>"
         ),
