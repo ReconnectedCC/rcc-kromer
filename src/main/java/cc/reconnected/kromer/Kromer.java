@@ -21,6 +21,7 @@ import cc.reconnected.kromer.common.CommonMeta;
 import cc.reconnected.kromer.database.Database;
 import cc.reconnected.kromer.database.Wallet;
 import cc.reconnected.kromer.database.WelfareData;
+import cc.reconnected.kromer.kromerApi.UpdatePlayer;
 import cc.reconnected.kromer.networking.BalanceRequestPacket;
 import cc.reconnected.kromer.networking.BalanceResponsePacket;
 import cc.reconnected.kromer.networking.TransactionPacket;
@@ -42,7 +43,6 @@ import java.util.concurrent.atomic.AtomicReference;
 import com.typesafe.config.*;
 import me.alexdevs.solstice.Solstice;
 import me.alexdevs.solstice.modules.ModuleProvider;
-import me.alexdevs.solstice.modules.afk.AfkModule;
 import me.alexdevs.solstice.modules.afk.data.AfkPlayerData;
 import me.lucko.fabric.api.permissions.v0.Permissions;
 import net.fabricmc.api.DedicatedServerModInitializer;
@@ -206,15 +206,16 @@ public class Kromer implements DedicatedServerModInitializer {
             }
         });
 
-        ServerPlayConnectionEvents.JOIN.register((a, b, c) -> {
+        ServerPlayConnectionEvents.JOIN.register((listener, sender, server) -> {
             if (client == null) {
                 LOGGER.error("Websocket client is null, cannot grant wallet nor calculate welfare.");
                 return;
             }
-            grantWallet(a.player.getScoreboardName(), a.player.getUUID(), a.player);
-            checkTransfers(a.player);
+            grantWallet(listener.getPlayer());
+            checkTransfers(listener.getPlayer());
             BigDecimal finalWelfare = calculateWelfare();
-            executeWelfareForPlayer(a.player, finalWelfare);
+            executeWelfareForPlayer(listener.getPlayer(), finalWelfare);
+            updatePlayerData(listener.getPlayer());
         });
 
         CommandRegistrationCallback.EVENT.register(PayCommand::register);
@@ -479,21 +480,21 @@ public class Kromer implements DedicatedServerModInitializer {
         return duration.getSeconds();
     }
 
-    public static void grantWallet(
-            String name,
-            UUID uuid,
-            ServerPlayer player
-    ) {
-        AfkPlayerData solsticeData = Solstice.modules
-                .getModule(AfkModule.class)
-                .orElseThrow()
-                .getPlayerData(uuid);
+    public static void grantWallet(ServerPlayer player) {
+        String name = player.getGameProfile().getName();
+        UUID uuid = player.getUUID();
+
+        AfkPlayerData solsticeData = ModuleProvider.AFK.getPlayerData(uuid);
+
         WelfareData welfareData = Solstice.playerData
                 .get(player.getUUID())
                 .getData(WelfareData.class);
+
+        // Prevent double retroactive kromer.
         if (welfareData.oldActiveTime == 0) {
-            welfareData.oldActiveTime = solsticeData.activeTime; // Prevent double retroactive kromer.
+            welfareData.oldActiveTime = solsticeData.activeTime;
         }
+
         if (database.getWallet(uuid) != null) {
             return;
         }
@@ -514,7 +515,7 @@ public class Kromer implements DedicatedServerModInitializer {
                 .thenCompose(f -> f)
                 .whenComplete((createWalletResult, ex) -> {
                     if (ex != null) {
-                        LOGGER.error("Failed to create wallet for user " + name, ex);
+                        LOGGER.error("Failed to create wallet for user {}. {}", name, ex);
                         return;
                     }
                     if (createWalletResult instanceof Result.Ok<CreateWallet.CreateWalletResponse> createWallet) {
@@ -533,15 +534,34 @@ public class Kromer implements DedicatedServerModInitializer {
                                     .thenCompose(f -> f)
                                     .whenComplete((giveMoneyResult, ex2) -> {
                                         if (ex2 != null) {
-                                            LOGGER.error("Failed to give retroactive kro to " + name, ex2);
+                                            LOGGER.error("Failed to give retroactive kro to {}. {}", name, ex2);
                                         }
 
                                     });
                         }
                     } else if (createWalletResult instanceof Result.Err<CreateWallet.CreateWalletResponse> err) {
-                        LOGGER.warn("Was not able to give user " + name + " their wallet. " + err.error().error() + ", param: " + err.error().parameter());
+                        LOGGER.warn("Was not able to give user {} their wallet. {}, param: {} ", name, err.error().error(), err.error().parameter());
                     }
                 });
 
+    }
+
+    public static void updatePlayerData(ServerPlayer player) {
+        UUID uuid = player.getUUID();
+        String name = player.getGameProfile().getName();
+
+        CompletableFuture
+                .supplyAsync(() -> UpdatePlayer.execute(config.getInternal_key(), uuid, name), NETWORK_EXECUTOR)
+                .thenCompose(f -> f)
+                .whenComplete((updatePlayerResult, ex) -> {
+                    if (ex != null) {
+                        LOGGER.error("Failed to update player data for {}. {}", name, ex);
+                        return;
+                    }
+
+                    if (updatePlayerResult instanceof Result.Err<UpdatePlayer.UpdatePlayerResponse> err) {
+                        LOGGER.warn("Failed to update player data for {}. {}", name, err.error().error());
+                    }
+                });
     }
 }
