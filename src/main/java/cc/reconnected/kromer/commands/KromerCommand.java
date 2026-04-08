@@ -102,7 +102,7 @@ public class KromerCommand {
                 argument("player", EntityArgument.player())
                         .executes(context -> {
                             ServerPlayer player = EntityArgument.getPlayer(context, "player");
-                            Kromer.grantWallet(player.getScoreboardName(), player.getUUID(), player);
+                            Kromer.grantWallet(player);
                             return Command.SINGLE_SUCCESS;
                         })
         );
