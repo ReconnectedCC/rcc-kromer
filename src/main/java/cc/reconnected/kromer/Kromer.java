@@ -41,6 +41,7 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import com.typesafe.config.*;
 import me.alexdevs.solstice.Solstice;
+import me.alexdevs.solstice.modules.ModuleProvider;
 import me.alexdevs.solstice.modules.afk.AfkModule;
 import me.alexdevs.solstice.modules.afk.data.AfkPlayerData;
 import me.lucko.fabric.api.permissions.v0.Permissions;
@@ -68,6 +69,11 @@ import ovh.sad.jkromer.jKromer;
 import ovh.sad.jkromer.models.Transaction;
 
 public class Kromer implements DedicatedServerModInitializer {
+    // Interval in seconds. 3600 = 1 hour.
+    public static final int WELFARE_INTERVAL = 3600;
+
+    public static final BigDecimal MINIMUM_WELFARE = BigDecimal.valueOf(0.01);
+
     public static Logger LOGGER = LoggerFactory.getLogger("rcc-kromer");
     public static Database database = new Database();
     public static final ExecutorService NETWORK_EXECUTOR = Executors.newCachedThreadPool();
@@ -88,7 +94,7 @@ public class Kromer implements DedicatedServerModInitializer {
     }
 
     public static void connectWebsocket(MinecraftServer server)
-        throws URISyntaxException {
+            throws URISyntaxException {
         LOGGER.debug("Connecting to Websocket..");
         CompletableFuture
                 .supplyAsync(StartWs::execute, NETWORK_EXECUTOR)
@@ -131,7 +137,7 @@ public class Kromer implements DedicatedServerModInitializer {
         instance = this;
 
         ArgumentTypeRegistry.registerArgumentType(new ResourceLocation("rcc-kromer", "kromer_amount"), KromerArgumentType.class, new KromerArgumentInfo());
-        ArgumentTypeRegistry.registerArgumentType(new ResourceLocation("rcc-kromer","kromer_address"), AddressArgumentType.class, SingletonArgumentInfo.contextFree(AddressArgumentType::address));
+        ArgumentTypeRegistry.registerArgumentType(new ResourceLocation("rcc-kromer", "kromer_address"), AddressArgumentType.class, SingletonArgumentInfo.contextFree(AddressArgumentType::address));
         Flyway flyway = Flyway.configure()
                 .dataSource("jdbc:sqlite:rcc-kromer.sqlite", null, null)
                 .baselineOnMigrate(true)
@@ -140,20 +146,20 @@ public class Kromer implements DedicatedServerModInitializer {
         flyway.migrate();
 
         Solstice.playerData.registerData(
-            Solstice.ID.withPath("welfare"),
-            WelfareData.class,
-            WelfareData::new
+                Solstice.ID.withPath("welfare"),
+                WelfareData.class,
+                WelfareData::new
         );
         ServerPlayNetworking.registerGlobalReceiver(BalanceRequestPacket.ID, (server, player, handler, buf, responseSender) -> server.execute(() -> {
             Wallet wallet = database.getWallet(player.getUUID());
-            if(wallet == null) {
+            if (wallet == null) {
                 LOGGER.error("BalanceRequestPacket: user " + player.getUUID().toString() + " has no valid wallet.");
                 return;
             }
 
             AtomicReference<BigDecimal> balance = new AtomicReference<>(balanceCache.get(wallet.address));
 
-            if(balance.get() == null) {
+            if (balance.get() == null) {
                 CompletableFuture
                         .supplyAsync(() -> GetAddress.execute(wallet.address), NETWORK_EXECUTOR)
                         .thenCompose(future -> future)
@@ -208,14 +214,14 @@ public class Kromer implements DedicatedServerModInitializer {
             grantWallet(a.player.getScoreboardName(), a.player.getUUID(), a.player);
             checkTransfers(a.player);
             BigDecimal finalWelfare = calculateWelfare();
-            executeWelfareForPlayer(a.player,finalWelfare);
+            executeWelfareForPlayer(a.player, finalWelfare);
         });
 
         CommandRegistrationCallback.EVENT.register(PayCommand::register);
         CommandRegistrationCallback.EVENT.register(BalanceCommand::register);
         CommandRegistrationCallback.EVENT.register(KromerCommand::register);
         CommandRegistrationCallback.EVENT.register(
-            TransactionsCommand::register
+                TransactionsCommand::register
         );
 
         config = ConfigBeanFactory.create(
@@ -248,7 +254,7 @@ public class Kromer implements DedicatedServerModInitializer {
         }
     }
 
-    private static BigDecimal calculateWelfare(){
+    private static BigDecimal calculateWelfare() {
         if (client == null) {
             LOGGER.error("Websocket client is null, cannot calculate welfare.");
             return BigDecimal.valueOf(0);
@@ -270,7 +276,7 @@ public class Kromer implements DedicatedServerModInitializer {
         BigDecimal welfare = BigDecimal.valueOf(config.getWelfare());
         if (
                 !playersWithSupporter.isEmpty() &&
-                !playersWithoutSupporter.isEmpty()
+                        !playersWithoutSupporter.isEmpty()
         ) {
             welfare =
                     BigDecimal.valueOf(config.getWelfare())
@@ -291,68 +297,79 @@ public class Kromer implements DedicatedServerModInitializer {
         BigDecimal finalWelfare = calculateWelfare();
 
         client.server
-            .getPlayerList()
-            .getPlayers()
-            .forEach(p -> executeWelfareForPlayer(p,finalWelfare));
+                .getPlayerList()
+                .getPlayers()
+                .forEach(p -> executeWelfareForPlayer(p, finalWelfare));
     }
+
     private static void executeWelfareForPlayer(ServerPlayer player, BigDecimal baseWelfare) {
-        if (baseWelfare.equals(BigDecimal.valueOf(0))) {
+        // Forbid paying less than 0.01 KRO
+        if (baseWelfare.compareTo(MINIMUM_WELFARE) < 0) {
             return;
         }
-        if(config.getBot() != null) {
-            if(Permissions.check(player, config.getBot())) return; // If bot then bye
-        }
-        Wallet wallet = Kromer.database.getWallet(player.getUUID());
-        if (wallet == null) return;
 
+        // Bots do not get welfare
+        String botPermissionNode = config.getBot();
+        if (botPermissionNode != null && Permissions.check(player, botPermissionNode)) {
+            return;
+        }
+
+        Wallet wallet = Kromer.database.getWallet(player.getUUID());
+        if (wallet == null) {
+            return;
+        }
 
         WelfareData welfareData = Solstice.playerData
                 .get(player.getUUID())
                 .getData(WelfareData.class);
-        int interval = 3600; // one hour, in seconds, since rcc-kromer does hourly welfare.
-        AfkPlayerData solsticeData = Solstice.modules
-                .getModule(AfkModule.class)
-                .orElseThrow()
-                .getPlayerData(player.getUUID());
-        int activeTime = solsticeData.activeTime;
-        var oldActiveTime = welfareData.oldActiveTime;
-        float deltaActiveTime = activeTime - oldActiveTime;
-        BigDecimal relativeDeltaActiveTime = BigDecimal.valueOf(deltaActiveTime / interval)
-                .setScale(2, RoundingMode.HALF_EVEN); // make it 1 if equal to interval, or greater if they log off and rejoin mid-interval
-        BigDecimal finalWelfare = baseWelfare.multiply(relativeDeltaActiveTime)
-                .setScale(2, RoundingMode.HALF_EVEN);
-        if (finalWelfare.equals(BigDecimal.valueOf(0))) return;
-        if (
-                !(welfareData.welfareMuted || welfareData.optedOut)
-        ) {
-            player.sendSystemMessage(
-                    Locale.use(Locale.Messages.WELFARE_GIVEN, finalWelfare)
-            );
-        }
-        if(!welfareData.optedOut) {
-            CompletableFuture
-                    .supplyAsync(() -> GiveMoney.execute(config.getInternal_key(), finalWelfare, wallet.address), NETWORK_EXECUTOR)
-                    .thenCompose(future -> future)
-                    .whenComplete((b, ex) -> {
-                        if (ex != null) {
-                            return;
-                        }
 
-                        if (b instanceof Result.Ok<GiveMoney.GiveMoneyResponse> ok) {
-                            balanceCache.put(wallet.address, ok.value().wallet.balance);
-                            ServerPlayNetworking.send(player, BalanceResponsePacket.ID, BalanceResponsePacket.serialise(ok.value().wallet.balance));
-                            welfareData.oldActiveTime = activeTime;
-                        }
-                    });
+        AfkPlayerData solsticeData = ModuleProvider.AFK.getPlayerData(player.getUUID());
+
+        int activeTime = solsticeData.activeTime;
+        int oldActiveTime = welfareData.oldActiveTime;
+        float deltaActiveTime = activeTime - oldActiveTime;
+
+        BigDecimal relativeDeltaActiveTime = BigDecimal.valueOf(deltaActiveTime / WELFARE_INTERVAL)
+                .setScale(5, RoundingMode.HALF_EVEN); // make it 1 if equal to interval, or greater if they log off and rejoin mid-interval
+        BigDecimal finalWelfare = baseWelfare.multiply(relativeDeltaActiveTime)
+                .setScale(5, RoundingMode.HALF_EVEN);
+
+        if (finalWelfare.compareTo(MINIMUM_WELFARE) < 0) {
+            return;
         }
+
+        if (welfareData.optedOut) {
+            return;
+        }
+
+        if (!welfareData.welfareMuted) {
+            player.sendSystemMessage(Locale.use(Locale.Messages.WELFARE_GIVEN, finalWelfare));
+        }
+
+        CompletableFuture
+                .supplyAsync(() -> GiveMoney.execute(config.getInternal_key(), finalWelfare, wallet.address), NETWORK_EXECUTOR)
+                .thenCompose(future -> future)
+                .whenComplete((b, ex) -> {
+                    if (ex != null) {
+                        LOGGER.error("Failed to give welfare to player: {}. {}", player.getDisplayName().getString(), ex);
+                        return;
+                    }
+
+                    if (b instanceof Result.Ok<GiveMoney.GiveMoneyResponse> ok) {
+                        balanceCache.put(wallet.address, ok.value().wallet.balance);
+                        ServerPlayNetworking.send(player, BalanceResponsePacket.ID, BalanceResponsePacket.serialise(ok.value().wallet.balance));
+                        welfareData.oldActiveTime = activeTime;
+                    }
+                });
     }
+
     public static String getNameFromWallet(String address) {
         String userName = address; // if from is
         Tuple<UUID, Wallet> fromWallet = database.getWallet(userName);
 
         if (fromWallet != null) {
             Optional<GameProfile> gf = Objects.requireNonNull(
-                client.server.getProfileCache()
+                    client.server.getProfileCache()
             ).get(fromWallet.getA());
             if (gf.isPresent()) {
                 userName = gf.get().getName();
@@ -365,14 +382,14 @@ public class Kromer implements DedicatedServerModInitializer {
     }
 
     public static void notifyTransfer(
-        ServerPlayer player,
-        Transaction transaction
+            ServerPlayer player,
+            Transaction transaction
     ) {
         BigDecimal balVal = Kromer.balanceCache.get(transaction.to);
-        if(balanceCache == null) {
+        if (balanceCache == null) {
             balVal = BigDecimal.valueOf(-1f);
         } else {
-            if(balVal == null) {
+            if (balVal == null) {
                 balVal = BigDecimal.valueOf(-1f);
             } else {
                 balVal = balVal.add(transaction.value);
@@ -383,7 +400,7 @@ public class Kromer implements DedicatedServerModInitializer {
         ServerPlayNetworking.send(player, TransactionPacket.ID, TransactionPacket.serialise(transaction, balVal));
 
         var commonMeta = CommonMeta.fromString(transaction.metadata);
-        if(commonMeta.keywordEntries.containsKey("error")) {
+        if (commonMeta.keywordEntries.containsKey("error")) {
             player.sendSystemMessage(
                     Locale.useSafe(
                             Locale.Messages.NOTIFY_TRANSFER_MESSAGE_ERROR,
@@ -422,12 +439,12 @@ public class Kromer implements DedicatedServerModInitializer {
                 Transaction transaction = wallet.outgoingNotSeen[i];
 
                 player.sendSystemMessage(
-                    Locale.use(
-                        Locale.Messages.OUTGOING_NOT_SEEN,
-                        transaction.value,
-                        getNameFromWallet(transaction.to),
-                        transaction.time.toString()
-                    )
+                        Locale.use(
+                                Locale.Messages.OUTGOING_NOT_SEEN,
+                                transaction.value,
+                                getNameFromWallet(transaction.to),
+                                transaction.time.toString()
+                        )
                 );
             }
         }
@@ -436,36 +453,36 @@ public class Kromer implements DedicatedServerModInitializer {
             for (int i = 0; i < wallet.incomingNotSeen.length; i++) {
                 Transaction transaction = wallet.incomingNotSeen[i];
                 player.sendSystemMessage(
-                    Locale.use(
-                        Locale.Messages.INCOMING_NOT_SEEN,
-                        getNameFromWallet(transaction.from),
-                        transaction.value,
-                        transaction.time.toString()
-                    )
+                        Locale.use(
+                                Locale.Messages.INCOMING_NOT_SEEN,
+                                getNameFromWallet(transaction.from),
+                                transaction.value,
+                                transaction.time.toString()
+                        )
                 );
             }
         }
 
-        wallet.incomingNotSeen = new Transaction[] {};
-        wallet.outgoingNotSeen = new Transaction[] {};
+        wallet.incomingNotSeen = new Transaction[]{};
+        wallet.outgoingNotSeen = new Transaction[]{};
         database.setWallet(player.getUUID(), wallet);
     }
 
     private static long getDelayUntilNextHourInSeconds() {
         LocalDateTime now = LocalDateTime.now();
         LocalDateTime nextHour = now
-            .plusHours(1)
-            .withMinute(0)
-            .withSecond(0)
-            .withNano(0);
+                .plusHours(1)
+                .withMinute(0)
+                .withSecond(0)
+                .withNano(0);
         Duration duration = Duration.between(now, nextHour);
         return duration.getSeconds();
     }
 
     public static void grantWallet(
-        String name,
-        UUID uuid,
-        ServerPlayer player
+            String name,
+            UUID uuid,
+            ServerPlayer player
     ) {
         AfkPlayerData solsticeData = Solstice.modules
                 .getModule(AfkModule.class)
@@ -488,7 +505,7 @@ public class Kromer implements DedicatedServerModInitializer {
 
         if (kroAmountRaw != 0) {
             player.sendSystemMessage(
-                Locale.use(Locale.Messages.RETROACTIVE, kroAmountRaw)
+                    Locale.use(Locale.Messages.RETROACTIVE, kroAmountRaw)
             );
         }
 
