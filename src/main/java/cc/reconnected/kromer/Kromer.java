@@ -436,35 +436,39 @@ public class Kromer implements DedicatedServerModInitializer {
                 WelfareData.class,
                 WelfareData::new
         );
-        ServerPlayNetworking.registerGlobalReceiver(BalanceRequestPacket.ID, (server, player, handler, buf, responseSender) -> server.execute(() -> {
-            Wallet wallet = database.getWallet(player.getUUID());
-            if (wallet == null) {
-                LOGGER.error("BalanceRequestPacket: user " + player.getUUID().toString() + " has no valid wallet.");
-                return;
-            }
 
-            AtomicReference<BigDecimal> balance = new AtomicReference<>(balanceCache.get(wallet.address));
+        ServerPlayNetworking.registerGlobalReceiver(BalanceRequestPacket.ID,
+                (server, player, handler, buf, responseSender) -> server.execute(() -> {
+                    Wallet wallet = database.getWallet(player.getUUID());
+                    if (wallet == null) {
+                        LOGGER.error("BalanceRequestPacket: user " + player.getUUID().toString() + " has no valid wallet.");
+                        return;
+                    }
 
-            if (balance.get() == null) {
-                CompletableFuture
-                        .supplyAsync(() -> GetAddress.execute(wallet.address), NETWORK_EXECUTOR)
-                        .thenCompose(future -> future)
-                        .whenComplete((b, ex) -> {
-                            if (ex != null) {
-                                LOGGER.error("BalanceRequestPacket: for user " + player.getUUID().toString() + " failed balance retrival due to " + ex.getMessage());
-                                return;
-                            }
+                    AtomicReference<BigDecimal> balance = new AtomicReference<>(balanceCache.get(wallet.address));
 
-                            if (b instanceof Result.Ok<GetAddress.GetAddressBody> ok) {
-                                balance.set(ok.value().address.balance);
-                                balanceCache.put(wallet.address, ok.value().address.balance);
-                                ServerPlayNetworking.send(player, BalanceResponsePacket.ID, BalanceResponsePacket.serialise(ok.value().address.balance));
-                            }
-                        });
-            } else {
-                ServerPlayNetworking.send(player, BalanceResponsePacket.ID, BalanceResponsePacket.serialise(balance.get()));
-            }
-        }));
+                    if (balance.get() == null) {
+                        CompletableFuture
+                                .supplyAsync(() -> GetAddress.execute(wallet.address), NETWORK_EXECUTOR)
+                                .thenCompose(future -> future)
+                                .whenComplete((b, ex) -> {
+                                    if (ex != null) {
+                                        LOGGER.error("BalanceRequestPacket: for user " + player.getUUID().toString() + " failed balance retrival due to " + ex.getMessage());
+                                        return;
+                                    }
+
+                                    if (b instanceof Result.Ok<GetAddress.GetAddressBody> ok) {
+                                        balance.set(ok.value().address.balance);
+                                        balanceCache.put(wallet.address, ok.value().address.balance);
+                                        ServerPlayNetworking.send(player, BalanceResponsePacket.ID, BalanceResponsePacket.serialise(ok.value().address.balance));
+                                    }
+                                });
+                    } else {
+                        ServerPlayNetworking.send(player, BalanceResponsePacket.ID, BalanceResponsePacket.serialise(balance.get()));
+                    }
+                })
+        );
+
         ServerLifecycleEvents.SERVER_STARTED.register(server -> {
             try {
                 connectWebsocket(server);
