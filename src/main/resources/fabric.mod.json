@@ -12,7 +12,7 @@
   "accessWidener": "rcc-kromer.accesswidener",
   "entrypoints": {
     "client": [
-      "cc.reconnected.kromer.client.mainClient"
+      "cc.reconnected.kromer.client.MainClient"
     ],
     "server": [
       "cc.reconnected.kromer.Kromer"

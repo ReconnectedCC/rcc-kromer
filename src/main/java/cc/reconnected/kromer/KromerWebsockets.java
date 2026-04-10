@@ -1,12 +1,13 @@
 package cc.reconnected.kromer;
 
-import java.net.URI;
-import java.util.*;
-
 import com.google.gson.Gson;
 import net.minecraft.server.MinecraftServer;
 import ovh.sad.jkromer.models.Transaction;
 import ovh.sad.jkromer.websocket.AbstractKromerClient;
+
+import java.net.URI;
+import java.util.ArrayList;
+import java.util.List;
 
 public class KromerWebsockets extends AbstractKromerClient {
 
@@ -49,7 +50,7 @@ public class KromerWebsockets extends AbstractKromerClient {
             Kromer.notifyTransfer(toPlayer, tx);
         }
 
-        if(fromWallet != null) {
+        if (fromWallet != null) {
             var fromPlayer = server.getPlayerList().getPlayer(fromWallet.getA());
             if (fromPlayer == null) {
                 var realWallet = fromWallet.getB();

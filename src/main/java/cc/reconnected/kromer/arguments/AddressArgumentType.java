@@ -12,6 +12,10 @@ import java.util.Collection;
 
 public class AddressArgumentType implements ArgumentType<String> {
     private static final Collection<String> EXAMPLES = Arrays.asList("kr0merwelf", "reconnected.kro", "meta@reconnected.kro", "hartbreix", "g6ys", "Dimaguy", "EmmaKnijn");
+
+    private AddressArgumentType() {
+    }
+
     public static boolean isAllowed(final char c) {
         return c >= '0' && c <= '9'
                 || c >= 'A' && c <= 'Z'
@@ -19,6 +23,15 @@ public class AddressArgumentType implements ArgumentType<String> {
                 || c == '@' || c == '.'
                 || c == '_';
     }
+
+    public static AddressArgumentType address() {
+        return new AddressArgumentType();
+    }
+
+    public static String getAddress(final CommandContext<?> context, final String name) {
+        return context.getArgument(name, String.class);
+    }
+
     @Override
     public String parse(StringReader reader) throws CommandSyntaxException {
         final int start = reader.getCursor();
@@ -42,16 +55,6 @@ public class AddressArgumentType implements ArgumentType<String> {
         //    throw new SimpleCommandExceptionType(new LiteralMessage("Not a valid address or (meta)name")).createWithContext(reader);
         //}
         return reader.getString().substring(start, reader.getCursor());
-    }
-
-    private AddressArgumentType() {}
-
-    public static AddressArgumentType address() {
-        return new AddressArgumentType();
-    }
-
-    public static String getAddress(final CommandContext<?> context, final String name) {
-        return context.getArgument(name, String.class);
     }
 
     @Override

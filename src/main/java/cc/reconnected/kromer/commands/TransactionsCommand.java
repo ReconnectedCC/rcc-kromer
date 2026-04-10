@@ -1,28 +1,27 @@
 package cc.reconnected.kromer.commands;
 
-import static cc.reconnected.kromer.Kromer.NETWORK_EXECUTOR;
-import static net.minecraft.commands.Commands.argument;
-import static net.minecraft.commands.Commands.literal;
-
 import cc.reconnected.kromer.Kromer;
 import cc.reconnected.kromer.Locale;
 import cc.reconnected.kromer.Locale.Messages;
-
 import cc.reconnected.kromer.database.Wallet;
 import com.mojang.brigadier.CommandDispatcher;
 import com.mojang.brigadier.arguments.IntegerArgumentType;
 import com.mojang.brigadier.context.CommandContext;
 import eu.pb4.placeholders.api.TextParserUtils;
-import ovh.sad.jkromer.http.addresses.GetAddressTransactions;
+import net.minecraft.commands.CommandBuildContext;
+import net.minecraft.commands.CommandSourceStack;
+import net.minecraft.commands.Commands;
 import ovh.sad.jkromer.http.Result;
+import ovh.sad.jkromer.http.addresses.GetAddressTransactions;
 
 import java.text.SimpleDateFormat;
 import java.util.Objects;
 import java.util.TimeZone;
 import java.util.concurrent.CompletableFuture;
-import net.minecraft.commands.CommandBuildContext;
-import net.minecraft.commands.CommandSourceStack;
-import net.minecraft.commands.Commands;
+
+import static cc.reconnected.kromer.Kromer.NETWORK_EXECUTOR;
+import static net.minecraft.commands.Commands.argument;
+import static net.minecraft.commands.Commands.literal;
 
 
 public class TransactionsCommand {
@@ -41,6 +40,7 @@ public class TransactionsCommand {
                         )
         );
     }
+
     public static int checkTransactions(CommandContext<CommandSourceStack> context) {
         Wallet wallet = null;
         try {
@@ -65,7 +65,8 @@ public class TransactionsCommand {
         int page = 1;
         try {
             page = IntegerArgumentType.getInteger(context, "page");
-        } catch (IllegalArgumentException ignored) {}
+        } catch (IllegalArgumentException ignored) {
+        }
 
         int offset = (page - 1) * 10;
         int finalPage = page;

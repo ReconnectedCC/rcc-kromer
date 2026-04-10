@@ -17,6 +17,7 @@ public class TransactionPacket {
         buf.writeUtf(balance.toString());
         return buf;
     }
+
     public static void writeTransaction(FriendlyByteBuf buf, Transaction tx) {
         buf.writeUtf(Objects.requireNonNullElse(tx.sent_metaname, ""));
         buf.writeInt(tx.id);

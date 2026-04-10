@@ -2,8 +2,10 @@
 
 package cc.reconnected.kromer;
 
-import java.util.*;
-import java.util.concurrent.*;
+import java.util.Deque;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentLinkedDeque;
 
 public class ConcurrentLRUCache<K, V> {
     private final int capacity;

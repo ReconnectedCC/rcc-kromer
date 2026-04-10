@@ -38,8 +38,8 @@ public class KromerArgumentInfo implements ArgumentTypeInfo<KromerArgumentType, 
 
         public @NotNull KromerArgumentType instantiate(CommandBuildContext context) {
             return KromerArgumentType.kromerArg(
-                this.allowNegativeValues,
-                this.allowZero
+                    this.allowNegativeValues,
+                    this.allowZero
             );
         }
 

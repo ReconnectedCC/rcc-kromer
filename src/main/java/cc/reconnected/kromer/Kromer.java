@@ -25,21 +25,8 @@ import cc.reconnected.kromer.networking.BalanceRequestPacket;
 import cc.reconnected.kromer.networking.BalanceResponsePacket;
 import cc.reconnected.kromer.networking.TransactionPacket;
 import com.mojang.authlib.GameProfile;
-
-import java.math.BigDecimal;
-import java.math.RoundingMode;
-import java.net.URI;
-import java.net.URISyntaxException;
-import java.sql.SQLException;
-import java.time.Duration;
-import java.time.LocalDateTime;
-import java.util.*;
-import java.util.Optional;
-import java.util.concurrent.*;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicReference;
-
-import com.typesafe.config.*;
+import com.typesafe.config.ConfigBeanFactory;
+import com.typesafe.config.ConfigFactory;
 import me.alexdevs.solstice.Solstice;
 import me.alexdevs.solstice.modules.ModuleProvider;
 import me.alexdevs.solstice.modules.afk.AfkModule;
@@ -68,25 +55,33 @@ import ovh.sad.jkromer.http.misc.StartWs;
 import ovh.sad.jkromer.jKromer;
 import ovh.sad.jkromer.models.Transaction;
 
+import java.math.BigDecimal;
+import java.math.RoundingMode;
+import java.net.URI;
+import java.net.URISyntaxException;
+import java.sql.SQLException;
+import java.time.Duration;
+import java.time.LocalDateTime;
+import java.util.*;
+import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
+
 public class Kromer implements DedicatedServerModInitializer {
     // Interval in seconds. 3600 = 1 hour.
     public static final int WELFARE_INTERVAL = 3600;
 
     public static final BigDecimal MINIMUM_WELFARE = BigDecimal.valueOf(0.01);
-
-    public static Logger LOGGER = LoggerFactory.getLogger("rcc-kromer");
-    public static Database database = new Database();
     public static final ExecutorService NETWORK_EXECUTOR = Executors.newCachedThreadPool();
     public static final ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
-
+    public static Logger LOGGER = LoggerFactory.getLogger("rcc-kromer");
+    public static Database database = new Database();
     public static ConfigurationModel config;
-    private static KromerWebsockets client;
-
     public static Boolean kromerStatus = false;
     public static int welfareQueued = 0;
     public static AtomicBoolean welfareRunning = new AtomicBoolean(false);
     public static ConcurrentLRUCache<String, BigDecimal> balanceCache = new ConcurrentLRUCache<>(500); // 500 is arbitary
-
+    private static KromerWebsockets client;
     private static Kromer instance = null;
 
     public static Optional<Kromer> instance() {
@@ -131,127 +126,6 @@ public class Kromer implements DedicatedServerModInitializer {
                         );
                     }
                 });
-    }
-
-    public void onInitializeServer() {
-        instance = this;
-
-        ArgumentTypeRegistry.registerArgumentType(new ResourceLocation("rcc-kromer", "kromer_amount"), KromerArgumentType.class, new KromerArgumentInfo());
-        ArgumentTypeRegistry.registerArgumentType(new ResourceLocation("rcc-kromer", "kromer_address"), AddressArgumentType.class, SingletonArgumentInfo.contextFree(AddressArgumentType::address));
-        Flyway flyway = Flyway.configure()
-                .dataSource("jdbc:sqlite:rcc-kromer.sqlite", null, null)
-                .baselineOnMigrate(true)
-                .load();
-
-        flyway.migrate();
-
-        Solstice.playerData.registerData(
-                Solstice.ID.withPath("welfare"),
-                WelfareData.class,
-                WelfareData::new
-        );
-        ServerPlayNetworking.registerGlobalReceiver(BalanceRequestPacket.ID, (server, player, handler, buf, responseSender) -> server.execute(() -> {
-            Wallet wallet = database.getWallet(player.getUUID());
-            if (wallet == null) {
-                LOGGER.error("BalanceRequestPacket: user " + player.getUUID().toString() + " has no valid wallet.");
-                return;
-            }
-
-            AtomicReference<BigDecimal> balance = new AtomicReference<>(balanceCache.get(wallet.address));
-
-            if (balance.get() == null) {
-                CompletableFuture
-                        .supplyAsync(() -> GetAddress.execute(wallet.address), NETWORK_EXECUTOR)
-                        .thenCompose(future -> future)
-                        .whenComplete((b, ex) -> {
-                            if (ex != null) {
-                                LOGGER.error("BalanceRequestPacket: for user " + player.getUUID().toString() + " failed balance retrival due to " + ex.getMessage());
-                                return;
-                            }
-
-                            if (b instanceof Result.Ok<GetAddress.GetAddressBody> ok) {
-                                balance.set(ok.value().address.balance);
-                                balanceCache.put(wallet.address, ok.value().address.balance);
-                                ServerPlayNetworking.send(player, BalanceResponsePacket.ID, BalanceResponsePacket.serialise(ok.value().address.balance));
-                            }
-                        });
-            } else {
-                ServerPlayNetworking.send(player, BalanceResponsePacket.ID, BalanceResponsePacket.serialise(balance.get()));
-            }
-        }));
-        ServerLifecycleEvents.SERVER_STARTED.register(server -> {
-            try {
-                connectWebsocket(server);
-            } catch (URISyntaxException u) {
-                u.printStackTrace();
-            }
-        });
-
-        ServerLifecycleEvents.SERVER_STOPPING.register(server -> {
-            if (scheduler != null) {
-                scheduler.shutdown();
-            }
-            if (NETWORK_EXECUTOR != null) {
-                NETWORK_EXECUTOR.shutdown();
-            }
-            if (client != null) {
-                client.close();
-            }
-            if (database != null) {
-                try {
-                    database.close();
-                } catch (SQLException e) {
-                    throw new RuntimeException(e);
-                }
-            }
-        });
-
-        ServerPlayConnectionEvents.JOIN.register((a, b, c) -> {
-            if (client == null) {
-                LOGGER.error("Websocket client is null, cannot grant wallet nor calculate welfare.");
-                return;
-            }
-            grantWallet(a.player.getScoreboardName(), a.player.getUUID(), a.player);
-            checkTransfers(a.player);
-            BigDecimal finalWelfare = calculateWelfare();
-            executeWelfareForPlayer(a.player, finalWelfare);
-        });
-
-        CommandRegistrationCallback.EVENT.register(PayCommand::register);
-        CommandRegistrationCallback.EVENT.register(BalanceCommand::register);
-        CommandRegistrationCallback.EVENT.register(KromerCommand::register);
-        CommandRegistrationCallback.EVENT.register(
-                TransactionsCommand::register
-        );
-
-        config = ConfigBeanFactory.create(
-                ConfigFactory.parseFile(
-                        FabricLoader.getInstance().getConfigDir().resolve("rcc-kromer.hocon").toFile()
-                ),
-                ConfigurationModel.class
-        );
-
-        jKromer.endpoint_raw = config.getUrl();
-        jKromer.endpoint = jKromer.endpoint_raw + "/api/krist";
-
-        long initialDelay = getDelayUntilNextHourInSeconds();
-        long period = 3600; // one hour in seconds
-        if (welfareRunning.getAndSet(true)) {
-            scheduler.scheduleAtFixedRate(
-                    () -> {
-                        if (!Kromer.kromerStatus) {
-                            welfareQueued++;
-                            return;
-                        }
-                        Kromer.executeWelfare();
-                    },
-                    initialDelay,
-                    period,
-                    TimeUnit.SECONDS
-            );
-        } else {
-            LOGGER.warn("Failed to start welfare scheduler, it is already running.");
-        }
     }
 
     private static BigDecimal calculateWelfare() {
@@ -543,5 +417,126 @@ public class Kromer implements DedicatedServerModInitializer {
                     }
                 });
 
+    }
+
+    public void onInitializeServer() {
+        instance = this;
+
+        ArgumentTypeRegistry.registerArgumentType(new ResourceLocation("rcc-kromer", "kromer_amount"), KromerArgumentType.class, new KromerArgumentInfo());
+        ArgumentTypeRegistry.registerArgumentType(new ResourceLocation("rcc-kromer", "kromer_address"), AddressArgumentType.class, SingletonArgumentInfo.contextFree(AddressArgumentType::address));
+        Flyway flyway = Flyway.configure()
+                .dataSource("jdbc:sqlite:rcc-kromer.sqlite", null, null)
+                .baselineOnMigrate(true)
+                .load();
+
+        flyway.migrate();
+
+        Solstice.playerData.registerData(
+                Solstice.ID.withPath("welfare"),
+                WelfareData.class,
+                WelfareData::new
+        );
+        ServerPlayNetworking.registerGlobalReceiver(BalanceRequestPacket.ID, (server, player, handler, buf, responseSender) -> server.execute(() -> {
+            Wallet wallet = database.getWallet(player.getUUID());
+            if (wallet == null) {
+                LOGGER.error("BalanceRequestPacket: user " + player.getUUID().toString() + " has no valid wallet.");
+                return;
+            }
+
+            AtomicReference<BigDecimal> balance = new AtomicReference<>(balanceCache.get(wallet.address));
+
+            if (balance.get() == null) {
+                CompletableFuture
+                        .supplyAsync(() -> GetAddress.execute(wallet.address), NETWORK_EXECUTOR)
+                        .thenCompose(future -> future)
+                        .whenComplete((b, ex) -> {
+                            if (ex != null) {
+                                LOGGER.error("BalanceRequestPacket: for user " + player.getUUID().toString() + " failed balance retrival due to " + ex.getMessage());
+                                return;
+                            }
+
+                            if (b instanceof Result.Ok<GetAddress.GetAddressBody> ok) {
+                                balance.set(ok.value().address.balance);
+                                balanceCache.put(wallet.address, ok.value().address.balance);
+                                ServerPlayNetworking.send(player, BalanceResponsePacket.ID, BalanceResponsePacket.serialise(ok.value().address.balance));
+                            }
+                        });
+            } else {
+                ServerPlayNetworking.send(player, BalanceResponsePacket.ID, BalanceResponsePacket.serialise(balance.get()));
+            }
+        }));
+        ServerLifecycleEvents.SERVER_STARTED.register(server -> {
+            try {
+                connectWebsocket(server);
+            } catch (URISyntaxException u) {
+                u.printStackTrace();
+            }
+        });
+
+        ServerLifecycleEvents.SERVER_STOPPING.register(server -> {
+            if (scheduler != null) {
+                scheduler.shutdown();
+            }
+            if (NETWORK_EXECUTOR != null) {
+                NETWORK_EXECUTOR.shutdown();
+            }
+            if (client != null) {
+                client.close();
+            }
+            if (database != null) {
+                try {
+                    database.close();
+                } catch (SQLException e) {
+                    throw new RuntimeException(e);
+                }
+            }
+        });
+
+        ServerPlayConnectionEvents.JOIN.register((a, b, c) -> {
+            if (client == null) {
+                LOGGER.error("Websocket client is null, cannot grant wallet nor calculate welfare.");
+                return;
+            }
+            grantWallet(a.player.getScoreboardName(), a.player.getUUID(), a.player);
+            checkTransfers(a.player);
+            BigDecimal finalWelfare = calculateWelfare();
+            executeWelfareForPlayer(a.player, finalWelfare);
+        });
+
+        CommandRegistrationCallback.EVENT.register(PayCommand::register);
+        CommandRegistrationCallback.EVENT.register(BalanceCommand::register);
+        CommandRegistrationCallback.EVENT.register(KromerCommand::register);
+        CommandRegistrationCallback.EVENT.register(
+                TransactionsCommand::register
+        );
+
+        config = ConfigBeanFactory.create(
+                ConfigFactory.parseFile(
+                        FabricLoader.getInstance().getConfigDir().resolve("rcc-kromer.hocon").toFile()
+                ),
+                ConfigurationModel.class
+        );
+
+        jKromer.endpoint_raw = config.getUrl();
+        jKromer.endpoint = jKromer.endpoint_raw + "/api/krist";
+
+        long initialDelay = getDelayUntilNextHourInSeconds();
+        long period = 3600; // one hour in seconds
+        if (welfareRunning.getAndSet(true)) {
+            scheduler.scheduleAtFixedRate(
+                    () -> {
+                        if (!Kromer.kromerStatus) {
+                            welfareQueued++;
+                            return;
+                        }
+                        Kromer.executeWelfare();
+                    },
+                    initialDelay,
+                    period,
+                    TimeUnit.SECONDS
+            );
+        } else {
+            LOGGER.warn("Failed to start welfare scheduler, it is already running.");
+        }
     }
 }

@@ -1,6 +1,5 @@
 package cc.reconnected.kromer.client;
 
-import cc.reconnected.kromer.Kromer;
 import cc.reconnected.kromer.arguments.AddressArgumentType;
 import cc.reconnected.kromer.arguments.KromerArgumentInfo;
 import cc.reconnected.kromer.arguments.KromerArgumentType;
@@ -29,7 +28,7 @@ import java.math.RoundingMode;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicReference;
 
-public class mainClient implements ClientModInitializer {
+public class MainClient implements ClientModInitializer {
     private final AtomicReference<BigDecimal> balance = new AtomicReference<>(BigDecimal.valueOf(-1f));
 
     @Override
@@ -59,7 +58,7 @@ public class mainClient implements ClientModInitializer {
             if (Objects.equals(decimal.toString(), "-1")) {
                 balance.set(decimal);
             }
-            if(client.getToasts().queued.size() < 3 && config.getConfig().toastPopup) {
+            if (client.getToasts().queued.size() < 3 && config.getConfig().toastPopup) {
                 client.getToasts().addToast(SystemToast.multiline(client, SystemToast.SystemToastIds.TUTORIAL_HINT,
                         Component.literal("Transaction"),
                         Component.literal("Incoming " + tx.value + "KRO from " + tx.from + "! Balance is now " + decimal + "KRO.")));
@@ -77,7 +76,7 @@ public class mainClient implements ClientModInitializer {
                         return;
                     }
 
-                    if(config.getConfig().balanceDisplay) {
+                    if (config.getConfig().balanceDisplay) {
                         int x = 10;
                         int y = 10;
 

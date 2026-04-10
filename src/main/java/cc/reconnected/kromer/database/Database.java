@@ -1,79 +1,80 @@
 package cc.reconnected.kromer.database;
 
+import com.google.gson.Gson;
+import net.minecraft.util.Tuple;
+import ovh.sad.jkromer.models.Transaction;
+
 import java.sql.*;
 import java.util.UUID;
-import net.minecraft.util.Tuple;
-import com.google.gson.Gson;
-import ovh.sad.jkromer.models.Transaction;
 
 public class Database {
 
-    private Connection connection;
     public Gson gson = new Gson();
+    private Connection connection;
 
     public Database() {
         try {
             connection = DriverManager.getConnection(
-                "jdbc:sqlite:rcc-kromer.sqlite"
+                    "jdbc:sqlite:rcc-kromer.sqlite"
             );
         } catch (SQLException e) {
             e.printStackTrace();
         }
-    }    
+    }
 
 
     public void setWallet(UUID playerUuid, Wallet wallet) {
         try {
             if (this.getWallet(playerUuid) == null) {
                 PreparedStatement stmt = connection.prepareStatement(
-                    """
-                        INSERT OR REPLACE INTO wallets (address, uuid, privatekey, incomingNotSeen, outgoingNotSeen)
-                        VALUES (?, ?, ?, ?, ?)
-                    """
+                        """
+                                    INSERT OR REPLACE INTO wallets (address, uuid, privatekey, incomingNotSeen, outgoingNotSeen)
+                                    VALUES (?, ?, ?, ?, ?)
+                                """
                 );
                 stmt.setString(1, wallet.address);
                 stmt.setString(2, playerUuid.toString());
                 stmt.setString(3, wallet.privatekey);
                 stmt.setString(
-                    4,
-                    gson.toJson(
-                        wallet.incomingNotSeen,
-                        Transaction[].class
-                    )
+                        4,
+                        gson.toJson(
+                                wallet.incomingNotSeen,
+                                Transaction[].class
+                        )
                 );
                 stmt.setString(
-                    5,
-                    gson.toJson(
-                        wallet.outgoingNotSeen,
-                        Transaction[].class
-                    )
+                        5,
+                        gson.toJson(
+                                wallet.outgoingNotSeen,
+                                Transaction[].class
+                        )
                 );
 
                 stmt.executeUpdate();
                 stmt.close();
             } else {
                 PreparedStatement stmt = connection.prepareStatement(
-                    """
-                        UPDATE wallets
-                        SET address = ?, privatekey = ?, incomingNotSeen = ?, outgoingNotSeen = ?
-                        WHERE uuid = ?
-                    """
+                        """
+                                    UPDATE wallets
+                                    SET address = ?, privatekey = ?, incomingNotSeen = ?, outgoingNotSeen = ?
+                                    WHERE uuid = ?
+                                """
                 );
                 stmt.setString(1, wallet.address);
                 stmt.setString(2, wallet.privatekey);
                 stmt.setString(
-                    3,
-                    gson.toJson(
-                        wallet.incomingNotSeen,
-                        Transaction[].class
-                    )
+                        3,
+                        gson.toJson(
+                                wallet.incomingNotSeen,
+                                Transaction[].class
+                        )
                 );
                 stmt.setString(
-                    4,
-                    gson.toJson(
-                        wallet.outgoingNotSeen,
-                        Transaction[].class
-                    )
+                        4,
+                        gson.toJson(
+                                wallet.outgoingNotSeen,
+                                Transaction[].class
+                        )
                 );
                 stmt.setString(5, playerUuid.toString());
                 stmt.executeUpdate();
@@ -87,25 +88,25 @@ public class Database {
     public Wallet getWallet(UUID playerUuid) {
         try {
             PreparedStatement stmt = connection.prepareStatement(
-                """
-                    SELECT address, privatekey, incomingNotSeen, outgoingNotSeen FROM wallets WHERE uuid = ?
-                """
+                    """
+                                SELECT address, privatekey, incomingNotSeen, outgoingNotSeen FROM wallets WHERE uuid = ?
+                            """
             );
             stmt.setString(1, playerUuid.toString());
             ResultSet rs = stmt.executeQuery();
 
             if (rs.next()) {
                 return new Wallet(
-                    rs.getString("address"),
-                    rs.getString("privatekey"),
-                    gson.fromJson(
-                        rs.getString("incomingNotSeen"),
-                        Transaction[].class
-                    ),
-                    gson.fromJson(
-                        rs.getString("outgoingNotSeen"),
-                        Transaction[].class
-                    )
+                        rs.getString("address"),
+                        rs.getString("privatekey"),
+                        gson.fromJson(
+                                rs.getString("incomingNotSeen"),
+                                Transaction[].class
+                        ),
+                        gson.fromJson(
+                                rs.getString("outgoingNotSeen"),
+                                Transaction[].class
+                        )
                 );
             }
         } catch (SQLException e) {
@@ -117,9 +118,9 @@ public class Database {
     public Tuple<UUID, Wallet> getWallet(String address) {
         try {
             PreparedStatement stmt = connection.prepareStatement(
-                """
-                    SELECT uuid, privatekey, incomingNotSeen, outgoingNotSeen FROM wallets WHERE address = ?
-                """
+                    """
+                                SELECT uuid, privatekey, incomingNotSeen, outgoingNotSeen FROM wallets WHERE address = ?
+                            """
             );
             stmt.setString(1, address);
             ResultSet rs = stmt.executeQuery();
@@ -127,16 +128,16 @@ public class Database {
             if (rs.next()) {
                 UUID uuid = UUID.fromString(rs.getString("uuid"));
                 Wallet wallet = new Wallet(
-                    address,
-                    rs.getString("privatekey"),
-                    gson.fromJson(
-                        rs.getString("incomingNotSeen"),
-                        Transaction[].class
-                    ),
-                    gson.fromJson(
-                        rs.getString("outgoingNotSeen"),
-                        Transaction[].class
-                    )
+                        address,
+                        rs.getString("privatekey"),
+                        gson.fromJson(
+                                rs.getString("incomingNotSeen"),
+                                Transaction[].class
+                        ),
+                        gson.fromJson(
+                                rs.getString("outgoingNotSeen"),
+                                Transaction[].class
+                        )
                 );
                 return new Tuple<>(uuid, wallet);
             }

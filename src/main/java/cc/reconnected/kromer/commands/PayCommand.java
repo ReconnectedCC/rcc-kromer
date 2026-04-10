@@ -1,28 +1,15 @@
 package cc.reconnected.kromer.commands;
 
-import static cc.reconnected.kromer.Kromer.NETWORK_EXECUTOR;
-import static net.minecraft.commands.Commands.argument;
-import static net.minecraft.commands.Commands.literal;
-
 import cc.reconnected.kromer.Kromer;
 import cc.reconnected.kromer.Locale;
 import cc.reconnected.kromer.arguments.AddressArgumentType;
 import cc.reconnected.kromer.arguments.KromerArgumentType;
 import cc.reconnected.kromer.common.CommonMeta;
 import cc.reconnected.kromer.database.Wallet;
-
 import com.mojang.authlib.GameProfile;
 import com.mojang.brigadier.CommandDispatcher;
 import com.mojang.brigadier.arguments.StringArgumentType;
 import com.mojang.brigadier.context.CommandContext;
-
-import java.math.BigDecimal;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.Objects;
-import java.util.UUID;
-import java.util.concurrent.CompletableFuture;
-
 import net.minecraft.commands.CommandBuildContext;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
@@ -31,40 +18,44 @@ import net.minecraft.server.level.ServerPlayer;
 import ovh.sad.jkromer.http.Result;
 import ovh.sad.jkromer.http.transactions.MakeTransaction;
 
+import java.math.BigDecimal;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Objects;
+import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
+
+import static cc.reconnected.kromer.Kromer.NETWORK_EXECUTOR;
+import static net.minecraft.commands.Commands.argument;
+import static net.minecraft.commands.Commands.literal;
+
 public class PayCommand {
 
     private static final Map<UUID, PendingPayment> pendingPayments =
-        new HashMap<>();
-
-    private static class PendingPayment {
-        String to;
-        BigDecimal amount;
-        String metadata;
-        long createdAt; // in milliseconds
-    }
+            new HashMap<>();
 
     public static void register(
-        CommandDispatcher<CommandSourceStack> dispatcher,
-        CommandBuildContext registryAccess,
-        Commands.CommandSelection environment
+            CommandDispatcher<CommandSourceStack> dispatcher,
+            CommandBuildContext registryAccess,
+            Commands.CommandSelection environment
     ) {
         dispatcher.register(
-            literal("confirm_pay").executes(PayCommand::confirmPay)
+                literal("confirm_pay").executes(PayCommand::confirmPay)
         );
 
         dispatcher.register(
-            literal("pay").then(
-                argument("recipient", AddressArgumentType.address()).then(
-                    argument("amount", KromerArgumentType.kromerArg())
-                        .executes(PayCommand::executePay)
-                        .then(
-                            argument(
-                                "metadata",
-                                StringArgumentType.greedyString()
-                            ).executes(PayCommand::executePay)
+                literal("pay").then(
+                        argument("recipient", AddressArgumentType.address()).then(
+                                argument("amount", KromerArgumentType.kromerArg())
+                                        .executes(PayCommand::executePay)
+                                        .then(
+                                                argument(
+                                                        "metadata",
+                                                        StringArgumentType.greedyString()
+                                                ).executes(PayCommand::executePay)
+                                        )
                         )
                 )
-            )
         );
     }
 
@@ -117,7 +108,6 @@ public class PayCommand {
         return 1;
     }
 
-
     private static int executePay(CommandContext<CommandSourceStack> context) {
         ServerPlayer player;
         try {
@@ -139,10 +129,10 @@ public class PayCommand {
 
         if (!Kromer.kromerStatus) {
             context
-                .getSource()
-                .sendSuccess(() -> Locale.use(Locale.Messages.KROMER_UNAVAILABLE),
-                    false
-                );
+                    .getSource()
+                    .sendSuccess(() -> Locale.use(Locale.Messages.KROMER_UNAVAILABLE),
+                            false
+                    );
             return 0;
         }
 
@@ -156,31 +146,31 @@ public class PayCommand {
                                 .getSource()
                                 .getServer()
                                 .getProfileCache())
-                    .get(recipientInput)
-                    .orElse(null);
+                        .get(recipientInput)
+                        .orElse(null);
             } catch (Exception ignored) {
             }
 
             if (otherProfile == null) {
                 context
-                    .getSource()
-                    .sendSuccess(
-                        () -> Locale.use(Locale.Messages.PAYMENT_RECIPIENT_NOT_FOUND),
-                        false
-                    );
+                        .getSource()
+                        .sendSuccess(
+                                () -> Locale.use(Locale.Messages.PAYMENT_RECIPIENT_NOT_FOUND),
+                                false
+                        );
                 return 0;
             }
 
             Wallet otherWallet = Kromer.database.getWallet(
-                otherProfile.getId()
+                    otherProfile.getId()
             );
             if (otherWallet == null) {
                 context
-                    .getSource()
-                    .sendSuccess(
-                        () -> Locale.use(Locale.Messages.PAYMENT_RECIPIENT_NO_WALLET),
-                        false
-                    );
+                        .getSource()
+                        .sendSuccess(
+                                () -> Locale.use(Locale.Messages.PAYMENT_RECIPIENT_NO_WALLET),
+                                false
+                        );
                 return 0;
             }
 
@@ -195,11 +185,11 @@ public class PayCommand {
 
         if (wallet == null) {
             context
-                .getSource()
-                .sendSuccess(
-                    () -> Locale.use(Locale.Messages.PAYMENT_SENDER_NO_WALLET),
-                    false
-                );
+                    .getSource()
+                    .sendSuccess(
+                            () -> Locale.use(Locale.Messages.PAYMENT_SENDER_NO_WALLET),
+                            false
+                    );
             return 0;
         }
 
@@ -233,13 +223,13 @@ public class PayCommand {
             Component confirmButton = Locale.use(Locale.Messages.PAYMENT_CONFIRMATION_BUTTON, payment.amount, finalRecipientName);
 
             context
-                .getSource()
-                .sendSuccess(
-                    () -> Component.empty()
-                            .append(Locale.use(Locale.Messages.PAYMENT_CONFIRMATION, payment.amount, finalRecipientName))
-                            .append(confirmButton),
-                    false
-                );
+                    .getSource()
+                    .sendSuccess(
+                            () -> Component.empty()
+                                    .append(Locale.use(Locale.Messages.PAYMENT_CONFIRMATION, payment.amount, finalRecipientName))
+                                    .append(confirmButton),
+                            false
+                    );
             return 1;
         } else {
             return sendPayment(context, payment);
@@ -269,5 +259,12 @@ public class PayCommand {
         }
 
         return sendPayment(context, payment);
+    }
+
+    private static class PendingPayment {
+        String to;
+        BigDecimal amount;
+        String metadata;
+        long createdAt; // in milliseconds
     }
 }

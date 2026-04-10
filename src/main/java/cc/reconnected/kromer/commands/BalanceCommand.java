@@ -1,9 +1,5 @@
 package cc.reconnected.kromer.commands;
 
-import static cc.reconnected.kromer.Kromer.NETWORK_EXECUTOR;
-import static net.minecraft.commands.Commands.argument;
-import static net.minecraft.commands.Commands.literal;
-
 import cc.reconnected.kromer.Kromer;
 import cc.reconnected.kromer.Locale;
 import cc.reconnected.kromer.arguments.AddressArgumentType;
@@ -14,31 +10,35 @@ import com.mojang.brigadier.CommandDispatcher;
 import com.mojang.brigadier.context.CommandContext;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
 import net.minecraft.ChatFormatting;
+import net.minecraft.commands.CommandBuildContext;
+import net.minecraft.commands.CommandSourceStack;
+import net.minecraft.commands.Commands;
 import net.minecraft.network.chat.Component;
 import ovh.sad.jkromer.http.Result;
 import ovh.sad.jkromer.http.addresses.GetAddress;
 
 import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
-import net.minecraft.commands.CommandBuildContext;
-import net.minecraft.commands.CommandSourceStack;
-import net.minecraft.commands.Commands;
+
+import static cc.reconnected.kromer.Kromer.NETWORK_EXECUTOR;
+import static net.minecraft.commands.Commands.argument;
+import static net.minecraft.commands.Commands.literal;
 
 public class BalanceCommand {
     public static void register(
-        CommandDispatcher<CommandSourceStack> dispatcher,
-        CommandBuildContext registryAccess,
-        Commands.CommandSelection environment
+            CommandDispatcher<CommandSourceStack> dispatcher,
+            CommandBuildContext registryAccess,
+            Commands.CommandSelection environment
     ) {
         dispatcher.register(
-            literal("balance").then(
-                    argument("recipient", AddressArgumentType.address()).executes(e -> runBalance(e, true))
-            ).executes(e -> runBalance(e, false))
+                literal("balance").then(
+                        argument("recipient", AddressArgumentType.address()).executes(e -> runBalance(e, true))
+                ).executes(e -> runBalance(e, false))
         );
         dispatcher.register(
-            literal("bal").then(
-                    argument("recipient", AddressArgumentType.address()).executes(e -> runBalance(e, true))
-            ).executes(e -> runBalance(e, false))
+                literal("bal").then(
+                        argument("recipient", AddressArgumentType.address()).executes(e -> runBalance(e, true))
+                ).executes(e -> runBalance(e, false))
         );
     }
 
@@ -49,7 +49,7 @@ public class BalanceCommand {
 
         String kristAddress;
 
-        if(hasRecipient) {
+        if (hasRecipient) {
             String recipientInput = AddressArgumentType.getAddress(context, "recipient");
 
             if (recipientInput.matches("^k[a-z0-9]{9}$") || recipientInput.matches("^(?:([a-z0-9-_]{1,32})@)?([a-z0-9]{1,64})\\.kro$")) {
@@ -105,21 +105,21 @@ public class BalanceCommand {
 
         if (!Kromer.kromerStatus) {
             context
-                .getSource()
-                .sendSuccess(
-                    () -> Locale.use(Locale.Messages.KROMER_UNAVAILABLE),
-                    false
-                );
+                    .getSource()
+                    .sendSuccess(
+                            () -> Locale.use(Locale.Messages.KROMER_UNAVAILABLE),
+                            false
+                    );
             return 0;
         }
 
         if (myWallet == null) {
             context
-                .getSource()
-                .sendSuccess(
-                    () -> Locale.use(Locale.Messages.NO_WALLET),
-                    false
-                );
+                    .getSource()
+                    .sendSuccess(
+                            () -> Locale.use(Locale.Messages.NO_WALLET),
+                            false
+                    );
             return 0;
         }
 
@@ -135,7 +135,7 @@ public class BalanceCommand {
                     }
 
                     if (b instanceof Result.Ok<GetAddress.GetAddressBody> ok) {
-                        if(kristAddress == null) {
+                        if (kristAddress == null) {
                             source.getServer().execute(() -> {
                                 source.sendSuccess(
                                         () -> Locale.use(Locale.Messages.BALANCE, ok.value().address.balance),

@@ -1,10 +1,5 @@
 package cc.reconnected.kromer.commands;
 
-import static cc.reconnected.kromer.Kromer.NETWORK_EXECUTOR;
-import static cc.reconnected.kromer.Kromer.balanceCache;
-import static net.minecraft.commands.Commands.argument;
-import static net.minecraft.commands.Commands.literal;
-
 import cc.reconnected.kromer.Kromer;
 import cc.reconnected.kromer.Locale;
 import cc.reconnected.kromer.arguments.KromerArgumentType;
@@ -13,7 +8,6 @@ import cc.reconnected.kromer.database.WelfareData;
 import cc.reconnected.kromer.networking.BalanceResponsePacket;
 import com.mojang.brigadier.Command;
 import com.mojang.brigadier.CommandDispatcher;
-import java.util.Objects;
 import me.alexdevs.solstice.Solstice;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
 import net.fabricmc.loader.api.FabricLoader;
@@ -29,7 +23,13 @@ import ovh.sad.jkromer.http.internal.GiveMoney;
 import ovh.sad.jkromer.http.misc.GetMotd;
 import ovh.sad.jkromer.http.transactions.MakeTransaction;
 
+import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
+
+import static cc.reconnected.kromer.Kromer.NETWORK_EXECUTOR;
+import static cc.reconnected.kromer.Kromer.balanceCache;
+import static net.minecraft.commands.Commands.argument;
+import static net.minecraft.commands.Commands.literal;
 
 
 public class KromerCommand {
