@@ -155,7 +155,9 @@ public class BalanceCommand {
                             });
                         }
 
-                        ServerPlayNetworking.send(player, BalanceResponsePacket.ID, BalanceResponsePacket.serialise(ok.value().address.balance));
+                        if (!hasRecipient) {
+                            ServerPlayNetworking.send(player, BalanceResponsePacket.ID, BalanceResponsePacket.serialise(ok.value().address.balance));
+                        }
                     } else if (b instanceof Result.Err<GetAddress.GetAddressBody> err) {
                         source.getServer().execute(() ->
                                 source.sendSuccess(
@@ -165,6 +167,7 @@ public class BalanceCommand {
                         );
                     }
                 });
+
         return 1;
     }
 }
