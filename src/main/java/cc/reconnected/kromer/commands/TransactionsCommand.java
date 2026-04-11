@@ -100,11 +100,18 @@ public class TransactionsCommand {
                         )));
 
                         for (var transaction : responseObj.transactions) {
-                            var template = switch(transaction.type) {
+                            var template = switch (transaction.type) {
                                 case "mined" -> Locale.Messages.TRANSACTION_MINED;
-                                case "transfer" -> wallet.address.equals(transaction.from) ? Messages.TRANSACTION_OUT : Messages.TRANSACTION_IN;
+                                case "transfer" ->
+                                        wallet.address.equals(transaction.from) ? Messages.TRANSACTION_OUT : Messages.TRANSACTION_IN;
                                 default -> Messages.TRANSACTION_OTHER;
                             };
+
+                            if ("mined".equals(transaction.type)) {
+                                if (wallet.address.equals(transaction.from)) {
+                                    transaction.value = transaction.value.negate();
+                                }
+                            }
 
                             component = component
                                     .append(newLine)
