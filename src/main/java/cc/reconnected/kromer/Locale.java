@@ -125,8 +125,10 @@ public class Locale {
         OPTED_OUT_WELFARE("<gold>You have opted out of welfare.</gold>"),
         TRANSACTIONS_INFO("<gold>Transactions for <yellow>${player}</yellow> on page <gray>${page}</gray>:</gold>"),
         TRANSACTIONS_EMPTY("<gold>No transactions found.</gold>"),
-        TRANSACTION_TRANSFER(" <gold><gray><hover:show_text:'${datetime}'>[${date}]</hover></gray> <yellow><hover:show_text:'${type}'>#${id}</hover></yellow>: <yellow>${sender}</yellow> → <gray>${amount} KRO</gray> → <yellow>${recipient}</yellow>.</gold>"),
-        TRANSACTION(" <gold><gray><hover:show_text:'${datetime}'>[${date}]</hover></gray> <aqua><hover:show_text:'${type}'>#${id}</hover></aqua>: <yellow>${sender}</yellow> → <gray>${amount} KRO</gray> → <yellow>${recipient}</yellow>.</gold>"),
+        TRANSACTION_IN(" <gold><gray><hover:show_text:'${datetime}'>[${date}]</hover></gray> <aqua><hover:show_text:'${type}'>#${id}</hover></aqua>: <yellow>${sender}</yellow> → <green>${amount} KRO</green>.</gold>"),
+        TRANSACTION_OUT(" <gold><gray><hover:show_text:'${datetime}'>[${date}]</hover></gray> <aqua><hover:show_text:'${type}'>#${id}</hover></aqua>: <red>${amount} KRO</red> → <yellow>${recipient}</yellow>.</gold>"),
+        TRANSACTION_MINED(" <gold><gray><hover:show_text:'${datetime}'>[${date}]</hover></gray> <aqua><hover:show_text:'${type}'>#${id}</hover></aqua>: ⛏ <gray>${amount} KRO</gray>.</gold>"),
+        TRANSACTION_OTHER(" <gold><gray><hover:show_text:'${datetime}'>[${date}]</hover></gray> <aqua><hover:show_text:'${type}'>#${id}</hover></aqua>: <yellow>${sender}</yellow> → <gray>${amount} KRO</gray> → <yellow>${recipient}</yellow>.</gold>"),
         TRANSACTION_METADATA("\n<gray>${metadata}</gray>"),
         ;
 

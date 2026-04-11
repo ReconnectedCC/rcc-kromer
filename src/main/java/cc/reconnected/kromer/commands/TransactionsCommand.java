@@ -100,9 +100,11 @@ public class TransactionsCommand {
                         )));
 
                         for (var transaction : responseObj.transactions) {
-                            Messages template = "transfer".equals(transaction.type)
-                                    ? Messages.TRANSACTION_TRANSFER
-                                    : Messages.TRANSACTION;
+                            var template = switch(transaction.type) {
+                                case "mined" -> Locale.Messages.TRANSACTION_MINED;
+                                case "transfer" -> wallet.address.equals(transaction.from) ? Messages.TRANSACTION_OUT : Messages.TRANSACTION_IN;
+                                default -> Messages.TRANSACTION_OTHER;
+                            };
 
                             component = component
                                     .append(newLine)
@@ -111,7 +113,7 @@ public class TransactionsCommand {
                                             "date", Component.literal(dateFormat.format(transaction.time)),
                                             "type", Component.literal(transaction.type),
                                             "id", Component.literal(String.valueOf(transaction.id)),
-                                            "sender", Component.literal(transaction.from),
+                                            "sender", Component.nullToEmpty(transaction.from),
                                             "recipient", Component.literal(transaction.to)
                                     )));
 
