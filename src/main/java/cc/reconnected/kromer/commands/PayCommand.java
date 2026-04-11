@@ -52,9 +52,9 @@ public class PayCommand {
                                                 )
                                 )
                         )
-                        .then(literal("confirm")
-                                .executes(PayCommand::confirmPay))
         );
+
+        dispatcher.register(literal("pay_confirm").executes(PayCommand::confirmPay));
     }
 
     private static int sendPayment(CommandContext<CommandSourceStack> context, PendingPayment payment) throws CommandSyntaxException {
@@ -164,7 +164,7 @@ public class PayCommand {
             pendingPayments.put(player.getUUID(), payment);
 
             String finalRecipientName = recipientName;
-            Component confirmButton = Components.button("Confirm", "Click to confirm payment", "/pay confirm");
+            Component confirmButton = Components.button("Confirm", "Click to confirm payment", "/pay_confirm");
 
             source.sendSuccess(() -> Locale.parse(Locale.Messages.PAYMENT_CONFIRMATION, payment.amount, Map.of(
                     "recipient", Component.literal(finalRecipientName),
