@@ -6,15 +6,19 @@ import cc.reconnected.kromer.arguments.KromerArgumentType;
 import cc.reconnected.kromer.database.Wallet;
 import cc.reconnected.kromer.database.WelfareData;
 import cc.reconnected.kromer.networking.BalanceResponsePacket;
+import com.mojang.authlib.GameProfile;
 import com.mojang.brigadier.Command;
 import com.mojang.brigadier.CommandDispatcher;
+import com.mojang.brigadier.arguments.StringArgumentType;
 import me.alexdevs.solstice.Solstice;
+import me.alexdevs.solstice.api.command.LocalGameProfile;
+import me.alexdevs.solstice.api.text.Components;
+import me.lucko.fabric.api.permissions.v0.Permissions;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
 import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.commands.CommandBuildContext;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
-import net.minecraft.commands.arguments.EntityArgument;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
 import ovh.sad.jkromer.http.Result;
@@ -23,7 +27,8 @@ import ovh.sad.jkromer.http.internal.GiveMoney;
 import ovh.sad.jkromer.http.misc.GetMotd;
 import ovh.sad.jkromer.http.transactions.MakeTransaction;
 
-import java.util.Objects;
+import java.math.BigDecimal;
+import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 
 import static cc.reconnected.kromer.Kromer.NETWORK_EXECUTOR;
@@ -50,104 +55,102 @@ public class KromerCommand {
             CompletableFuture
                     .supplyAsync(GetMotd::execute, NETWORK_EXECUTOR)
                     .thenCompose(f -> f)
-                    .whenComplete((b, ex) -> {
+                    .whenComplete((result, ex) -> {
                         if (ex != null) {
-                            context.getSource().getServer().execute(() ->
-                                    context.getSource().sendSuccess(() -> Locale.use(Locale.Messages.ERROR, ex.getMessage()), false)
-                            );
+                            context.getSource().sendFailure(Locale.error(ex.getMessage()));
                             return;
                         }
-                        if (b instanceof Result.Ok<GetMotd.GetMotdBody> ok) {
-                            context.getSource().getServer().execute(() ->
-                                    context.getSource().sendSuccess(
-                                            () -> Locale.use(Locale.Messages.VERSION, modVersion, ok.value().motdPackage.git_hash),
-                                            false
-                                    )
-                            );
-                        } else if (b instanceof Result.Err<GetMotd.GetMotdBody> err) {
-                            context.getSource().getServer().execute(() ->
-                                    context.getSource().sendSuccess(
-                                            () -> Locale.use(Locale.Messages.ERROR, err.error()),
-                                            false
-                                    )
-                            );
+
+                        if (result instanceof Result.Ok<GetMotd.GetMotdBody> ok) {
+                            context.getSource().sendSuccess(() -> Locale.parse(Locale.Messages.VERSION, Map.of(
+                                    "pluginVersion", Component.literal(modVersion),
+                                    "kromerVersion", Component.literal(ok.value().motdPackage.version)
+                            )), false);
+
+                        } else if (result instanceof Result.Err<GetMotd.GetMotdBody> err) {
+                            context.getSource().sendFailure(Locale.error(err.error().toString()));
                         }
                     });
             return 1;
         });
 
         var infoCommand = literal("info").executes(context -> {
-            Wallet wallet = null;
-            try {
-                wallet = Kromer.database.getWallet(Objects.requireNonNull(context.getSource().getPlayer()).getUUID());
-            } catch (NullPointerException ignored) {
-            }
-            if (wallet == null) return 0;
+            var player = context.getSource().getPlayerOrException();
+            Wallet wallet = Kromer.database.getWallet(player.getUUID());
 
-            Wallet finalWallet = wallet;
+            if (wallet == null)
+                return 0;
+
             context.getSource().sendSuccess(() ->
-                    Locale.use(Locale.Messages.KROMER_INFORMATION,
-                            finalWallet.address, finalWallet.address, finalWallet.privatekey, finalWallet.privatekey), false
+                    Locale.parse(Locale.Messages.KROMER_INFORMATION,
+                            Map.of(
+                                    "address", Component.literal(wallet.address),
+                                    "privateKeyButton", Locale.buttonCopy("Copy key", "Click to copy the private key", wallet.privatekey)
+                            )
+                    ), false
             );
 
             if (!Kromer.kromerStatus) {
-                context.getSource().sendSuccess(Component::empty, false);
-                context.getSource().sendSuccess(() -> Locale.use(Locale.Messages.KROMER_UNAVAILABLE), false);
+                context.getSource().sendFailure(Locale.parse(Locale.Messages.KROMER_UNAVAILABLE));
                 return 0;
             }
+
             return Command.SINGLE_SUCCESS;
         });
 
-        var giveWalletCommand = literal("givewallet").then(
-                argument("player", EntityArgument.player())
+        var giveWalletCommand = literal("givewallet")
+                .then(argument("player", StringArgumentType.word())
+                        .suggests(LocalGameProfile::suggest)
                         .executes(context -> {
-                            ServerPlayer player = EntityArgument.getPlayer(context, "player");
-                            Kromer.grantWallet(player.getScoreboardName(), player.getUUID(), player);
+                            var profile = LocalGameProfile.getProfile(context, "player");
+
+                            Kromer.grantWallet(profile);
+
+                            context.getSource().sendSuccess(() -> Component.literal("Granted wallet to " + profile.getName()), true);
                             return Command.SINGLE_SUCCESS;
                         })
-        );
+                );
 
-        var setMoneyCommand = literal("addMoney").then(
-                argument("player", EntityArgument.player()).then(
-                        argument("amount", KromerArgumentType.kromerArg())
+        var addMoneyCommand = literal("addMoney")
+                .then(argument("player", StringArgumentType.word())
+                        .suggests(LocalGameProfile::suggest)
+                        .then(argument("amount", KromerArgumentType.kromerArg(true, false))
                                 .executes(context -> {
-                                    ServerPlayer player = EntityArgument.getPlayer(context, "player");
-                                    var amount = KromerArgumentType.getBigDecimal(context, "amount");
+                                    GameProfile profile = LocalGameProfile.getProfile(context, "player");
+                                    BigDecimal amount = KromerArgumentType.getBigDecimal(context, "amount");
+
+                                    ServerPlayer player = context.getSource().getServer().getPlayerList().getPlayer(profile.getId());
+                                    CommandSourceStack source = context.getSource();
 
                                     CompletableFuture
                                             .supplyAsync(() -> GiveMoney.execute(Kromer.config.getInternal_key(), amount,
-                                                    Kromer.database.getWallet(player.getUUID()).address), NETWORK_EXECUTOR)
+                                                    Kromer.database.getWallet(profile.getId()).address), NETWORK_EXECUTOR)
                                             .thenCompose(f -> f)
-                                            .whenComplete((b, ex) -> {
+                                            .whenComplete((result, ex) -> {
                                                 if (ex != null) {
-                                                    context.getSource().getServer().execute(() ->
-                                                            context.getSource().sendSuccess(() -> Locale.use(Locale.Messages.ERROR, ex.getMessage()), false)
-                                                    );
+                                                    source.sendFailure(Locale.error(ex.getMessage()));
                                                     return;
                                                 }
-                                                if (b instanceof Result.Ok<GiveMoney.GiveMoneyResponse> ok) {
-                                                    balanceCache.put(ok.value().wallet.address, ok.value().wallet.balance);
-                                                    ServerPlayNetworking.send(player, BalanceResponsePacket.ID, BalanceResponsePacket.serialise(ok.value().wallet.balance));
 
-                                                    context.getSource().getServer().execute(() ->
-                                                            context.getSource().sendSuccess(
-                                                                    () -> Locale.use(Locale.Messages.ADDED_KRO, amount, player.getScoreboardName()),
-                                                                    false
+                                                if (result instanceof Result.Ok<GiveMoney.GiveMoneyResponse> response) {
+                                                    balanceCache.put(response.value().wallet.address, response.value().wallet.balance);
+                                                    if (player != null) {
+                                                        ServerPlayNetworking.send(player, BalanceResponsePacket.ID, BalanceResponsePacket.serialise(response.value().wallet.balance));
+                                                    }
+
+                                                    source.sendSuccess(() -> Locale.parse(Locale.Messages.ADDED_KRO, amount,
+                                                            Map.of(
+                                                                    "player", Component.literal(profile.getName())
                                                             )
-                                                    );
-                                                } else if (b instanceof Result.Err<GiveMoney.GiveMoneyResponse> err) {
-                                                    context.getSource().getServer().execute(() ->
-                                                            context.getSource().sendSuccess(
-                                                                    () -> Locale.use(Locale.Messages.ERROR, err.error()),
-                                                                    false
-                                                            )
-                                                    );
+                                                    ), true);
+                                                } else if (result instanceof Result.Err<GiveMoney.GiveMoneyResponse> error) {
+                                                    source.sendFailure(Locale.error(error.error().toString()));
                                                 }
                                             });
                                     return Command.SINGLE_SUCCESS;
                                 })
-                )
-        );
+                        )
+                );
 
         var executeWelfare = literal("welfare").executes(context -> {
             Kromer.executeWelfare();
@@ -155,98 +158,79 @@ public class KromerCommand {
         });
 
         var muteWelfare = literal("muteWelfare").executes(context -> {
+            var player = context.getSource().getPlayerOrException();
+
             WelfareData welfareData = Solstice.playerData
-                    .get(Objects.requireNonNull(context.getSource().getPlayer()).getUUID())
+                    .get(player.getUUID())
                     .getData(WelfareData.class);
 
-            if (welfareData.welfareMuted) {
-                context.getSource().sendSuccess(() -> Locale.use(Locale.Messages.WELFARE_NOT_MUTED), false);
-            } else {
-                context.getSource().sendSuccess(() -> Locale.use(Locale.Messages.WELFARE_MUTED), false);
-            }
             welfareData.welfareMuted = !welfareData.welfareMuted;
+
+            if (welfareData.welfareMuted) {
+                context.getSource().sendSuccess(() -> Locale.parse(Locale.Messages.WELFARE_NOT_MUTED), false);
+            } else {
+                context.getSource().sendSuccess(() -> Locale.parse(Locale.Messages.WELFARE_MUTED), false);
+            }
+
             return Command.SINGLE_SUCCESS;
         });
 
         var optInOfWelfare = literal("optIn").executes(context -> {
-            WelfareData welfareData;
-            try {
-                welfareData = Solstice.playerData
-                        .get(Objects.requireNonNull(context.getSource().getPlayer()).getUUID())
-                        .getData(WelfareData.class);
-            } catch (NullPointerException e) {
-                return 0;
-            }
-
+            var player = context.getSource().getPlayerOrException();
+            WelfareData welfareData = Solstice.playerData.get(player.getUUID()).getData(WelfareData.class);
 
             if (welfareData.optedOut) {
                 welfareData.optedOut = false;
-                context.getSource().sendSuccess(() -> Locale.use(Locale.Messages.OPTED_IN_WELFARE), false);
+                context.getSource().sendSuccess(() -> Locale.parse(Locale.Messages.OPTED_IN_WELFARE), false);
             } else {
-                context.getSource().sendSuccess(() -> Locale.use(Locale.Messages.ALREADY_OPTED_IN), false);
+                context.getSource().sendSuccess(() -> Locale.parse(Locale.Messages.ALREADY_OPTED_IN), false);
             }
+
             return 1;
         });
 
         var optOutOfWelfare = literal("optOut")
                 .executes(context -> {
-                    WelfareData welfareData;
-                    try {
-                        welfareData = Solstice.playerData
-                                .get(Objects.requireNonNull(context.getSource().getPlayer()).getUUID())
-                                .getData(WelfareData.class);
-                    } catch (NullPointerException e) {
-                        return 0;
-                    }
-
+                    var player = context.getSource().getPlayerOrException();
+                    WelfareData welfareData = Solstice.playerData.get(player.getUUID()).getData(WelfareData.class);
 
                     if (welfareData.optedOut) {
-                        context.getSource().sendSuccess(() -> Locale.use(Locale.Messages.ALREADY_OPTED_OUT), false);
+                        context.getSource().sendSuccess(() -> Locale.parse(Locale.Messages.ALREADY_OPTED_OUT), false);
                         return 0;
                     }
 
-                    context.getSource().sendSuccess(() -> Locale.use(Locale.Messages.OPTOUT_WARNING), false);
-                    context.getSource().sendSuccess(Component::empty, false);
-                    context.getSource().sendSuccess(() -> Locale.use(Locale.Messages.OPTOUT_INFO), false);
-                    context.getSource().sendSuccess(Component::empty, false);
-                    context.getSource().sendSuccess(() -> Locale.use(Locale.Messages.CONFIRM_OPTOUT_BUTTON), false);
+                    context.getSource().sendSuccess(() -> Locale.parse(Locale.Messages.OPTOUT_WARNING, Map.of(
+                            "confirmButton", Components.button("Confirm", "Click to opt out of welfare", "/kromer optOut confirm")
+                    )), false);
                     return 1;
                 })
                 .then(literal("confirm").executes(context -> {
-                    WelfareData welfareData;
-                    try {
-                        welfareData = Solstice.playerData
-                                .get(Objects.requireNonNull(context.getSource().getPlayer()).getUUID())
-                                .getData(WelfareData.class);
-                    } catch (NullPointerException e) {
-                        return 0;
-                    }
-
+                    final var source = context.getSource();
+                    var player = source.getPlayerOrException();
+                    WelfareData welfareData = Solstice.playerData.get(player.getUUID()).getData(WelfareData.class);
 
                     welfareData.optedOut = true;
 
-                    Wallet wallet = Kromer.database.getWallet(context.getSource().getPlayer().getUUID());
+                    Wallet wallet = Kromer.database.getWallet(player.getUUID());
                     if (wallet == null) return 0;
 
                     CompletableFuture
                             .supplyAsync(() -> GetAddress.execute(wallet.address), NETWORK_EXECUTOR)
                             .thenCompose(f -> f)
-                            .whenComplete((b, ex) -> {
+                            .whenComplete((addressResponse, ex) -> {
                                 if (ex != null) {
-                                    context.getSource().getServer().execute(() ->
-                                            context.getSource().sendSuccess(() -> Locale.use(Locale.Messages.ERROR, ex.getMessage()), false)
-                                    );
+                                    source.sendFailure(Locale.error(ex.getMessage()));
                                     return;
                                 }
-                                if (b instanceof Result.Ok<GetAddress.GetAddressBody> ok) {
+                                if (addressResponse instanceof Result.Ok<GetAddress.GetAddressBody> ok) {
                                     CompletableFuture
                                             .supplyAsync(() -> MakeTransaction.execute(wallet.privatekey,
                                                     "serverwelf", ok.value().address.balance,
                                                     "[rcc-kromer] relinquishing all kromer"), NETWORK_EXECUTOR)
                                             .thenCompose(f2 -> f2)
-                                            .whenComplete((z, ex2) -> context.getSource().getServer().execute(() ->
-                                                    context.getSource().sendSuccess(() -> Locale.use(Locale.Messages.OPTED_OUT_WELFARE), false)
-                                            ));
+                                            .whenComplete((response, ex2) -> {
+                                                source.sendSuccess(() -> Locale.parse(Locale.Messages.OPTED_OUT_WELFARE), false);
+                                            });
                                 }
                             });
                     return 1;
@@ -258,9 +242,9 @@ public class KromerCommand {
                 .then(muteWelfare)
                 .then(optInOfWelfare)
                 .then(optOutOfWelfare)
-                .then(giveWalletCommand.requires(scs -> scs.hasPermission(4)))
-                .then(setMoneyCommand.requires(scs -> scs.hasPermission(4)))
-                .then(executeWelfare.requires(scs -> scs.hasPermission(4)));
+                .then(giveWalletCommand.requires(Permissions.require("rcc-kromer.give-wallet", 4)))
+                .then(addMoneyCommand.requires(Permissions.require("rcc-kromer.add-money", 4)))
+                .then(executeWelfare.requires(Permissions.require("rcc-kromer.execute-welfare", 4)));
 
         dispatcher.register(rootCommand);
     }

@@ -10,6 +10,9 @@ import com.mojang.authlib.GameProfile;
 import com.mojang.brigadier.CommandDispatcher;
 import com.mojang.brigadier.arguments.StringArgumentType;
 import com.mojang.brigadier.context.CommandContext;
+import com.mojang.brigadier.exceptions.CommandSyntaxException;
+import me.alexdevs.solstice.Solstice;
+import me.alexdevs.solstice.api.text.Components;
 import net.minecraft.commands.CommandBuildContext;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
@@ -21,7 +24,6 @@ import ovh.sad.jkromer.http.transactions.MakeTransaction;
 import java.math.BigDecimal;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.Objects;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 
@@ -30,9 +32,7 @@ import static net.minecraft.commands.Commands.argument;
 import static net.minecraft.commands.Commands.literal;
 
 public class PayCommand {
-
-    private static final Map<UUID, PendingPayment> pendingPayments =
-            new HashMap<>();
+    private static final Map<UUID, PendingPayment> pendingPayments = new HashMap<>();
 
     public static void register(
             CommandDispatcher<CommandSourceStack> dispatcher,
@@ -40,67 +40,48 @@ public class PayCommand {
             Commands.CommandSelection environment
     ) {
         dispatcher.register(
-                literal("confirm_pay").executes(PayCommand::confirmPay)
-        );
-
-        dispatcher.register(
-                literal("pay").then(
-                        argument("recipient", AddressArgumentType.address()).then(
-                                argument("amount", KromerArgumentType.kromerArg())
-                                        .executes(PayCommand::executePay)
-                                        .then(
-                                                argument(
-                                                        "metadata",
-                                                        StringArgumentType.greedyString()
-                                                ).executes(PayCommand::executePay)
-                                        )
+                literal("pay")
+                        .then(argument("recipient", AddressArgumentType.address()).then(
+                                        argument("amount", KromerArgumentType.kromerArg())
+                                                .executes(PayCommand::executePay)
+                                                .then(
+                                                        argument(
+                                                                "metadata",
+                                                                StringArgumentType.greedyString()
+                                                        ).executes(PayCommand::executePay)
+                                                )
+                                )
                         )
-                )
+                        .then(literal("confirm")
+                                .executes(PayCommand::confirmPay))
         );
     }
 
-    private static int sendPayment(CommandContext<CommandSourceStack> context, PendingPayment payment) {
-        ServerPlayer player;
-        try {
-            player = Objects.requireNonNull(context.getSource().getPlayer());
-        } catch (NullPointerException e) {
-            context.getSource().sendSuccess(
-                    () -> Locale.use(Locale.Messages.NOT_ONLINE),
-                    false
-            );
-            return 0;
-        }
+    private static int sendPayment(CommandContext<CommandSourceStack> context, PendingPayment payment) throws CommandSyntaxException {
+        final var source = context.getSource();
+        ServerPlayer player = context.getSource().getPlayerOrException();
 
         Wallet wallet = Kromer.database.getWallet(player.getUUID());
         if (wallet == null) {
-            context.getSource().sendSuccess(
-                    () -> Locale.use(Locale.Messages.NO_WALLET),
-                    false
-            );
+            context.getSource().sendFailure(Locale.parse(Locale.Messages.NO_OWN_WALLET));
             return 0;
         }
 
         CompletableFuture
                 .supplyAsync(() -> MakeTransaction.execute(wallet.privatekey, payment.to, payment.amount, payment.metadata), NETWORK_EXECUTOR)
-                .thenCompose(future -> future)  // unwrap nested CompletableFuture<Result<...>>
+                .thenCompose(future -> future)
                 .whenComplete((result, ex) -> context.getSource().getServer().execute(() -> {
                     if (ex != null) {
-                        context.getSource().sendSuccess(
-                                () -> Locale.use(Locale.Messages.ERROR, ex.getMessage()),
-                                false
-                        );
+                        source.sendFailure(Locale.error(ex.getMessage()));
                         return;
                     }
+
                     if (result instanceof Result.Ok<MakeTransaction.MakeTransactionResponse> ok) {
-                        context.getSource().sendSuccess(
-                                () -> Locale.use(Locale.Messages.PAYMENT_CONFIRMED, payment.amount, payment.to),
-                                false
-                        );
+                        source.sendSuccess(() -> Locale.parse(Locale.Messages.PAYMENT_CONFIRMED, payment.amount, Map.of(
+                                "recipient", Component.literal(payment.to)
+                        )), false);
                     } else if (result instanceof Result.Err<MakeTransaction.MakeTransactionResponse> err) {
-                        context.getSource().sendSuccess(
-                                () -> Locale.use(Locale.Messages.ERROR, err.error()),
-                                false
-                        );
+                        source.sendFailure(Locale.error(err.error().toString()));
                     }
                 }));
 
@@ -108,17 +89,9 @@ public class PayCommand {
         return 1;
     }
 
-    private static int executePay(CommandContext<CommandSourceStack> context) {
-        ServerPlayer player;
-        try {
-            player = Objects.requireNonNull(context.getSource().getPlayer());
-        } catch (NullPointerException e) {
-            context.getSource().sendSuccess(
-                    () -> Locale.use(Locale.Messages.NOT_ONLINE),
-                    false
-            );
-            return 0;
-        }
+    private static int executePay(CommandContext<CommandSourceStack> context) throws CommandSyntaxException {
+        final var source = context.getSource();
+        ServerPlayer player = source.getPlayerOrException();
 
         pendingPayments.remove(player.getUUID());
 
@@ -128,49 +101,25 @@ public class PayCommand {
         String recipientName = null;
 
         if (!Kromer.kromerStatus) {
-            context
-                    .getSource()
-                    .sendSuccess(() -> Locale.use(Locale.Messages.KROMER_UNAVAILABLE),
-                            false
-                    );
+            source.sendFailure(Locale.parse(Locale.Messages.KROMER_UNAVAILABLE));
             return 0;
         }
 
-        if (recipientInput.matches("^k[a-z0-9]{9}$") || recipientInput.matches("^(?:([a-z0-9-_]{1,32})@)?([a-z0-9]{1,64})\\.kro$")) {
+        if (recipientInput.matches("^k[a-z0-9]{9}$")
+                || recipientInput.matches("^(?:([a-z0-9-_]{1,32})@)?([a-z0-9]{1,64})\\.kro$")) {
             kristAddress = recipientInput;
             recipientName = recipientInput;
         } else {
-            GameProfile otherProfile = null;
-            try {
-                otherProfile = Objects.requireNonNull(context
-                                .getSource()
-                                .getServer()
-                                .getProfileCache())
-                        .get(recipientInput)
-                        .orElse(null);
-            } catch (Exception ignored) {
-            }
-
+            GameProfile otherProfile = Solstice.getUserCache().getByName(recipientInput).orElse(null);
             if (otherProfile == null) {
-                context
-                        .getSource()
-                        .sendSuccess(
-                                () -> Locale.use(Locale.Messages.PAYMENT_RECIPIENT_NOT_FOUND),
-                                false
-                        );
+                source.sendFailure(Locale.parse(Locale.Messages.USER_OR_ADDRESS_NOT_FOUND));
                 return 0;
             }
 
-            Wallet otherWallet = Kromer.database.getWallet(
-                    otherProfile.getId()
-            );
+            Wallet otherWallet = Kromer.database.getWallet(otherProfile.getId());
+
             if (otherWallet == null) {
-                context
-                        .getSource()
-                        .sendSuccess(
-                                () -> Locale.use(Locale.Messages.PAYMENT_RECIPIENT_NO_WALLET),
-                                false
-                        );
+                source.sendFailure(Locale.parse(Locale.Messages.OTHER_USER_NO_WALLET));
                 return 0;
             }
 
@@ -178,18 +127,12 @@ public class PayCommand {
             recipientName = otherProfile.getName();
         }
 
-
         BigDecimal amount = KromerArgumentType.getBigDecimal(context, "amount");
 
         Wallet wallet = Kromer.database.getWallet(player.getUUID());
 
         if (wallet == null) {
-            context
-                    .getSource()
-                    .sendSuccess(
-                            () -> Locale.use(Locale.Messages.PAYMENT_SENDER_NO_WALLET),
-                            false
-                    );
+            source.sendFailure(Locale.parse(Locale.Messages.NO_OWN_WALLET));
             return 0;
         }
 
@@ -215,46 +158,31 @@ public class PayCommand {
         payment.metadata = commonMeta.toString();
         payment.createdAt = System.currentTimeMillis();
 
+        // TODO: when over half of own balance?
         // if amount > 10 KRO, require confirmation
         if (payment.amount.compareTo(new BigDecimal(10)) > 0) {
             pendingPayments.put(player.getUUID(), payment);
 
             String finalRecipientName = recipientName;
-            Component confirmButton = Locale.use(Locale.Messages.PAYMENT_CONFIRMATION_BUTTON, payment.amount, finalRecipientName);
+            Component confirmButton = Components.button("Confirm", "Click to confirm payment", "/pay confirm");
 
-            context
-                    .getSource()
-                    .sendSuccess(
-                            () -> Component.empty()
-                                    .append(Locale.use(Locale.Messages.PAYMENT_CONFIRMATION, payment.amount, finalRecipientName))
-                                    .append(confirmButton),
-                            false
-                    );
+            source.sendSuccess(() -> Locale.parse(Locale.Messages.PAYMENT_CONFIRMATION, payment.amount, Map.of(
+                    "recipient", Component.literal(finalRecipientName),
+                    "confirmButton", confirmButton
+            )), false);
+
             return 1;
         } else {
             return sendPayment(context, payment);
         }
     }
 
-    private static int confirmPay(CommandContext<CommandSourceStack> context) {
-        PendingPayment payment;
-        ServerPlayer player;
-        try {
-            player = Objects.requireNonNull(context.getSource().getPlayer());
-            payment = pendingPayments.remove(player.getUUID());
-        } catch (NullPointerException e) {
-            context.getSource().sendSuccess(
-                    () -> Locale.use(Locale.Messages.NOT_ONLINE),
-                    false
-            );
-            return 0;
-        }
+    private static int confirmPay(CommandContext<CommandSourceStack> context) throws CommandSyntaxException {
+        ServerPlayer player = context.getSource().getPlayerOrException();
+        PendingPayment payment = pendingPayments.remove(player.getUUID());
 
         if (payment == null) {
-            context.getSource().sendSuccess(
-                    () -> Locale.use(Locale.Messages.NO_PENDING),
-                    false
-            );
+            context.getSource().sendSuccess(() -> Locale.parse(Locale.Messages.NO_PENDING), false);
             return 0;
         }
 

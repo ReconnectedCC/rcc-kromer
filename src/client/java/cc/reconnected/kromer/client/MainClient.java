@@ -59,9 +59,12 @@ public class MainClient implements ClientModInitializer {
                 balance.set(decimal);
             }
             if (client.getToasts().queued.size() < 3 && config.getConfig().toastPopup) {
-                client.getToasts().addToast(SystemToast.multiline(client, SystemToast.SystemToastIds.TUTORIAL_HINT,
-                        Component.literal("Transaction"),
-                        Component.literal("Incoming " + tx.value + "KRO from " + tx.from + "! Balance is now " + decimal + "KRO.")));
+                client.getToasts().addToast(
+                        SystemToast.multiline(client, SystemToast.SystemToastIds.TUTORIAL_HINT,
+                                Component.literal("Transaction"),
+                                Component.literal(String.format("Incoming %.02f KRO from %s! Balance is now %.02f KRO.", tx.value, tx.from, decimal))
+                        )
+                );
             }
         });
 

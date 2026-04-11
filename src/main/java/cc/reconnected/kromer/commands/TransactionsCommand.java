@@ -5,17 +5,21 @@ import cc.reconnected.kromer.Locale;
 import cc.reconnected.kromer.Locale.Messages;
 import cc.reconnected.kromer.database.Wallet;
 import com.mojang.brigadier.CommandDispatcher;
+import com.mojang.brigadier.arguments.BoolArgumentType;
 import com.mojang.brigadier.arguments.IntegerArgumentType;
 import com.mojang.brigadier.context.CommandContext;
-import eu.pb4.placeholders.api.TextParserUtils;
+import com.mojang.brigadier.exceptions.CommandSyntaxException;
+import me.alexdevs.solstice.api.text.Components;
 import net.minecraft.commands.CommandBuildContext;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
+import net.minecraft.network.chat.Component;
+import net.minecraft.network.chat.MutableComponent;
 import ovh.sad.jkromer.http.Result;
 import ovh.sad.jkromer.http.addresses.GetAddressTransactions;
 
 import java.text.SimpleDateFormat;
-import java.util.Objects;
+import java.util.Map;
 import java.util.TimeZone;
 import java.util.concurrent.CompletableFuture;
 
@@ -33,100 +37,118 @@ public class TransactionsCommand {
     ) {
         dispatcher.register(
                 literal("transactions")
-                        .executes(TransactionsCommand::checkTransactions)
-                        .then(
-                                argument("page", IntegerArgumentType.integer(1))
-                                        .executes(TransactionsCommand::checkTransactions)
+                        .executes(context -> checkTransactions(context, 1, false))
+                        .then(argument("includeMined", BoolArgumentType.bool())
+                                .executes(context -> checkTransactions(context, 1, BoolArgumentType.getBool(context, "includeMined"))))
+                        .then(argument("page", IntegerArgumentType.integer(1))
+                                .executes(context -> checkTransactions(context, IntegerArgumentType.getInteger(context, "page"), false))
+                                .then(argument("includeMined", BoolArgumentType.bool())
+                                        .executes(context -> checkTransactions(context, IntegerArgumentType.getInteger(context, "page"), BoolArgumentType.getBool(context, "includeMined"))))
                         )
         );
     }
 
-    public static int checkTransactions(CommandContext<CommandSourceStack> context) {
-        Wallet wallet = null;
-        try {
-            wallet = Kromer.database.getWallet(Objects.requireNonNull(context.getSource().getPlayer()).getUUID());
-        } catch (Exception ignored) {
-        }
+    public static int checkTransactions(CommandContext<CommandSourceStack> context, final int page, boolean includeMined) throws CommandSyntaxException {
+        final var source = context.getSource();
+        final var player = source.getPlayerOrException();
+
+        Wallet wallet = Kromer.database.getWallet(player.getUUID());
 
         if (!Kromer.kromerStatus) {
-            context.getSource().sendSuccess(() -> Locale.use(Locale.Messages.KROMER_UNAVAILABLE), false);
+            source.sendSuccess(() -> Locale.parse(Locale.Messages.KROMER_UNAVAILABLE), false);
             return 0;
         }
 
         if (wallet == null) {
-            context.getSource().sendSuccess(() -> Locale.use(Locale.Messages.NO_WALLET), false);
+            source.sendSuccess(() -> Locale.parse(Locale.Messages.NO_OWN_WALLET), false);
             return 0;
         }
 
-        var source = context.getSource();
-        var player = source.getPlayer();
-        assert player != null;
+        int limit = 10;
+        int offset = (page - 1) * limit;
 
-        int page = 1;
-        try {
-            page = IntegerArgumentType.getInteger(context, "page");
-        } catch (IllegalArgumentException ignored) {
-        }
-
-        int offset = (page - 1) * 10;
-        int finalPage = page;
-
-        Wallet finalWallet = wallet;
         CompletableFuture
-                .supplyAsync(() -> GetAddressTransactions.execute(finalWallet.address, false, 10, offset), NETWORK_EXECUTOR)
+                .supplyAsync(() -> GetAddressTransactions.execute(wallet.address, !includeMined, limit, offset), NETWORK_EXECUTOR)
                 .thenCompose(future -> future) // unwrap nested CompletableFuture<Result<...>>
                 .whenComplete((result, throwable) -> {
-                    source.getServer().execute(() -> {
-                        if (throwable != null) {
-                            source.sendSuccess(() -> Locale.use(Locale.Messages.ERROR, throwable), false);
+                    if (throwable != null) {
+                        source.sendFailure(Locale.parse(Locale.Messages.ERROR, Map.of(
+                                "error", Component.literal(throwable.getMessage())
+                        )));
+                        return;
+                    }
+
+                    if (result instanceof Result.Ok<GetAddressTransactions.GetAddressTransactionsBody> ok) {
+                        var responseObj = ok.value();
+
+                        if (responseObj.transactions == null || responseObj.transactions.isEmpty()) {
+                            source.sendSuccess(() -> Locale.parse(Locale.Messages.TRANSACTIONS_EMPTY), false);
                             return;
                         }
 
-                        if (result instanceof Result.Ok<GetAddressTransactions.GetAddressTransactionsBody> ok) {
-                            var responseObj = ok.value();
+                        final SimpleDateFormat dateFormat = new SimpleDateFormat("yy-MM-dd");
+                        final SimpleDateFormat dateTimeFormat = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
+                        dateFormat.setTimeZone(TimeZone.getTimeZone("UTC"));
+                        dateTimeFormat.setTimeZone(TimeZone.getTimeZone("UTC"));
 
-                            source.sendSuccess(() -> Locale.use(Locale.Messages.TRANSACTIONS_INFO, player.getScoreboardName(), finalPage), false);
+                        var newLine = Component.literal("\n");
+                        MutableComponent component = Component.empty();
 
-                            if (responseObj.transactions == null || responseObj.transactions.isEmpty()) {
-                                source.sendSuccess(() -> Locale.use(Locale.Messages.TRANSACTIONS_EMPTY), false);
-                                return;
+                        component = component.append(Locale.parse(Locale.Messages.TRANSACTIONS_INFO, Map.of(
+                                "player", player.getDisplayName(),
+                                "page", Component.literal(String.valueOf(page))
+                        )));
+
+                        for (var transaction : responseObj.transactions) {
+                            Messages template = "transfer".equals(transaction.type)
+                                    ? Messages.TRANSACTION_TRANSFER
+                                    : Messages.TRANSACTION;
+
+                            component = component
+                                    .append(newLine)
+                                    .append(Locale.parse(template, transaction.value, Map.of(
+                                            "datetime", Component.literal(dateTimeFormat.format(transaction.time)),
+                                            "date", Component.literal(dateFormat.format(transaction.time)),
+                                            "type", Component.literal(transaction.type),
+                                            "id", Component.literal(String.valueOf(transaction.id)),
+                                            "sender", Component.literal(transaction.from),
+                                            "recipient", Component.literal(transaction.to)
+                                    )));
+
+                            if (transaction.metadata != null) {
+                                component = component
+                                        .append(Component.literal(" "))
+                                        .append(Locale.parse(Messages.TRANSACTION_METADATA, Map.of(
+                                                "metadata", Component.nullToEmpty(transaction.metadata)
+                                        )));
                             }
-
-                            final SimpleDateFormat f = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
-                            f.setTimeZone(TimeZone.getTimeZone("UTC"));
-
-                            for (var transaction : responseObj.transactions) {
-                                source.sendSuccess(() -> Locale.useSafe(
-                                        Messages.TRANSACTION,
-                                        Objects.equals(transaction.type, "transfer") ? "<aqua>" : "<gold>",
-                                        f.format(transaction.time), // Always UTC
-                                        transaction.id,
-                                        transaction.from,
-                                        transaction.to,
-                                        transaction.value,
-                                        transaction.metadata
-                                ), false);
-                            }
-
-                            boolean hasNextPage = responseObj.transactions.size() >= 10;
-                            boolean hasPreviousPage = finalPage > 1;
-                            StringBuilder nav = new StringBuilder("<green>Navigation: ");
-                            if (hasPreviousPage) {
-                                nav.append("<run_cmd:'/transactions ")
-                                        .append(finalPage - 1)
-                                        .append("'><aqua>[Prev. Page]</aqua></run_cmd> ");
-                            }
-                            if (hasNextPage) {
-                                nav.append("<run_cmd:'/transactions ")
-                                        .append(finalPage + 1)
-                                        .append("'><aqua>[Next Page]</aqua></run_cmd>");
-                            }
-                            source.sendSuccess(() -> TextParserUtils.formatText(nav.toString()), false);
-
-                        } else if (result instanceof Result.Err<GetAddressTransactions.GetAddressTransactionsBody> err) {
-                            source.sendSuccess(() -> Locale.use(Locale.Messages.ERROR, err.error()), false);
                         }
-                    });
+
+                        boolean hasNextPage = responseObj.transactions.size() >= 10;
+                        boolean hasPreviousPage = page > 1;
+
+
+                        if (hasNextPage || hasPreviousPage) {
+                            component = component.append(newLine);
+                            if (hasPreviousPage) {
+                                component = component.append(Components.button("Previous Page", "Click to go to previous page", "/transactions " + (page - 1) + " " + includeMined));
+                            }
+
+                            if (hasNextPage && hasPreviousPage) {
+                                component = component.append(Component.literal(" "));
+                            }
+
+                            if (hasNextPage) {
+                                component = component.append(Components.button("Next Page", "Click to go to next page", "/transactions " + (page + 1) + " " + includeMined));
+                            }
+                        }
+
+                        final Component finalComponent = component;
+                        source.sendSuccess(() -> finalComponent, false);
+
+                    } else if (result instanceof Result.Err<GetAddressTransactions.GetAddressTransactionsBody> err) {
+                        source.sendFailure(Locale.error(err.error().toString()));
+                    }
                 });
 
         return 1;

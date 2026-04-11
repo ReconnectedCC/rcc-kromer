@@ -29,7 +29,6 @@ import com.typesafe.config.ConfigBeanFactory;
 import com.typesafe.config.ConfigFactory;
 import me.alexdevs.solstice.Solstice;
 import me.alexdevs.solstice.modules.ModuleProvider;
-import me.alexdevs.solstice.modules.afk.AfkModule;
 import me.alexdevs.solstice.modules.afk.data.AfkPlayerData;
 import me.lucko.fabric.api.permissions.v0.Permissions;
 import net.fabricmc.api.DedicatedServerModInitializer;
@@ -40,6 +39,7 @@ import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
 import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.commands.synchronization.SingletonArgumentInfo;
+import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
@@ -83,6 +83,7 @@ public class Kromer implements DedicatedServerModInitializer {
     public static ConcurrentLRUCache<String, BigDecimal> balanceCache = new ConcurrentLRUCache<>(500); // 500 is arbitary
     private static KromerWebsockets client;
     private static Kromer instance = null;
+    private static MinecraftServer server;
 
     public static Optional<Kromer> instance() {
         return Optional.ofNullable(instance);
@@ -133,25 +134,27 @@ public class Kromer implements DedicatedServerModInitializer {
             LOGGER.error("Websocket client is null, cannot calculate welfare.");
             return BigDecimal.valueOf(0);
         }
+
+        var group = config.getSupporter().getGroup();
+        var bot = config.getBot();
+
         List<ServerPlayer> playersWithSupporter = client.server
                 .getPlayerList()
                 .getPlayers()
                 .stream()
-                .filter(z -> Permissions.check(z, config.getSupporter().getGroup()) && !Permissions.check(z, config.getBot()))
+                .filter(player -> Permissions.check(player, group) && !Permissions.check(player, bot))
                 .toList();
 
         List<ServerPlayer> playersWithoutSupporter = client.server
                 .getPlayerList()
                 .getPlayers()
                 .stream()
-                .filter(z -> !Permissions.check(z, config.getSupporter().getGroup()) && !Permissions.check(z, config.getBot()))
+                .filter(player -> !Permissions.check(player, group) && !Permissions.check(player, bot))
                 .toList();
 
         BigDecimal welfare = BigDecimal.valueOf(config.getWelfare());
-        if (
-                !playersWithSupporter.isEmpty() &&
-                        !playersWithoutSupporter.isEmpty()
-        ) {
+        if (!playersWithSupporter.isEmpty()
+                && !playersWithoutSupporter.isEmpty()) {
             welfare =
                     BigDecimal.valueOf(config.getWelfare())
                             .multiply(
@@ -168,6 +171,7 @@ public class Kromer implements DedicatedServerModInitializer {
             LOGGER.error("Websocket client is null, cannot execute welfare.");
             return;
         }
+
         BigDecimal finalWelfare = calculateWelfare();
 
         client.server
@@ -217,7 +221,7 @@ public class Kromer implements DedicatedServerModInitializer {
         }
 
         if (!welfareData.welfareMuted) {
-            player.sendSystemMessage(Locale.use(Locale.Messages.WELFARE_GIVEN, finalWelfare));
+            player.sendSystemMessage(Locale.parse(Locale.Messages.WELFARE_GIVEN, finalWelfare));
         }
 
         CompletableFuture
@@ -276,28 +280,32 @@ public class Kromer implements DedicatedServerModInitializer {
         var commonMeta = CommonMeta.fromString(transaction.metadata);
         if (commonMeta.keywordEntries.containsKey("error")) {
             player.sendSystemMessage(
-                    Locale.useSafe(
+                    Locale.parse(
                             Locale.Messages.NOTIFY_TRANSFER_MESSAGE_ERROR,
                             transaction.value,
-                            getNameFromWallet(transaction.from),
-                            commonMeta.keywordEntries.get("error")
+                            Map.of(
+                                    "sender", Component.literal(getNameFromWallet(transaction.from)),
+                                    "message", Component.literal(commonMeta.keywordEntries.get("error"))
+                            )
                     )
             );
         } else if (commonMeta.keywordEntries.containsKey("message")) {
             player.sendSystemMessage(
-                    Locale.useSafe( // use useSafe, removes all <click's and whatnot.
+                    Locale.parse(
                             Locale.Messages.NOTIFY_TRANSFER_MESSAGE,
                             transaction.value,
-                            getNameFromWallet(transaction.from),
-                            commonMeta.keywordEntries.get("message")
+                            Map.of(
+                                    "sender", Component.literal(getNameFromWallet(transaction.from)),
+                                    "message", Component.literal(commonMeta.keywordEntries.get("message"))
+                            )
                     )
             );
         } else {
             player.sendSystemMessage(
-                    Locale.use(
+                    Locale.parse(
                             Locale.Messages.NOTIFY_TRANSFER,
                             transaction.value,
-                            getNameFromWallet(transaction.from)
+                            Map.of("sender", Component.literal(getNameFromWallet(transaction.from)))
                     )
             );
         }
@@ -313,11 +321,13 @@ public class Kromer implements DedicatedServerModInitializer {
                 Transaction transaction = wallet.outgoingNotSeen[i];
 
                 player.sendSystemMessage(
-                        Locale.use(
+                        Locale.parse(
                                 Locale.Messages.OUTGOING_NOT_SEEN,
                                 transaction.value,
-                                getNameFromWallet(transaction.to),
-                                transaction.time.toString()
+                                Map.of(
+                                        "recipient", Component.literal(getNameFromWallet(transaction.to)),
+                                        "date", Component.literal(transaction.time.toString())
+                                )
                         )
                 );
             }
@@ -327,11 +337,13 @@ public class Kromer implements DedicatedServerModInitializer {
             for (int i = 0; i < wallet.incomingNotSeen.length; i++) {
                 Transaction transaction = wallet.incomingNotSeen[i];
                 player.sendSystemMessage(
-                        Locale.use(
+                        Locale.parse(
                                 Locale.Messages.INCOMING_NOT_SEEN,
-                                getNameFromWallet(transaction.from),
                                 transaction.value,
-                                transaction.time.toString()
+                                Map.of(
+                                        "sender", Component.literal(getNameFromWallet(transaction.from)),
+                                        "date", Component.literal(transaction.time.toString())
+                                )
                         )
                 );
             }
@@ -353,35 +365,30 @@ public class Kromer implements DedicatedServerModInitializer {
         return duration.getSeconds();
     }
 
-    public static void grantWallet(
-            String name,
-            UUID uuid,
-            ServerPlayer player
-    ) {
-        AfkPlayerData solsticeData = Solstice.modules
-                .getModule(AfkModule.class)
-                .orElseThrow()
-                .getPlayerData(uuid);
+    public static void grantWallet(GameProfile profile) {
+        AfkPlayerData solsticeData = ModuleProvider.AFK.getPlayerData(profile.getId());
+
         WelfareData welfareData = Solstice.playerData
-                .get(player.getUUID())
+                .get(profile.getId())
                 .getData(WelfareData.class);
+
         if (welfareData.oldActiveTime == 0) {
             welfareData.oldActiveTime = solsticeData.activeTime; // Prevent double retroactive kromer.
         }
-        if (database.getWallet(uuid) != null) {
+        if (database.getWallet(profile.getId()) != null) {
             return;
         }
 
         // Retroactive KRO giving
-        float kroAmountRaw = (float) (((double) solsticeData.activeTime /
-                3600) *
-                config.getWelfare());
+        double kroAmountRaw = solsticeData.activeTime / 3600d * config.getWelfare();
 
-        if (kroAmountRaw != 0) {
-            player.sendSystemMessage(
-                    Locale.use(Locale.Messages.RETROACTIVE, kroAmountRaw)
-            );
+        ServerPlayer player = server.getPlayerList().getPlayer(profile.getId());
+        if (kroAmountRaw != 0 && player != null) {
+            player.sendSystemMessage(Locale.parse(Locale.Messages.RETROACTIVE, BigDecimal.valueOf(kroAmountRaw)));
         }
+
+        final String name = profile.getName();
+        final UUID uuid = profile.getId();
 
         CompletableFuture
                 .supplyAsync(() -> CreateWallet.execute(config.getInternal_key(), name, uuid.toString()), NETWORK_EXECUTOR)
@@ -469,6 +476,10 @@ public class Kromer implements DedicatedServerModInitializer {
                 })
         );
 
+        ServerLifecycleEvents.SERVER_STARTING.register(server -> {
+            Kromer.server = server;
+        });
+
         ServerLifecycleEvents.SERVER_STARTED.register(server -> {
             try {
                 connectWebsocket(server);
@@ -496,23 +507,21 @@ public class Kromer implements DedicatedServerModInitializer {
             }
         });
 
-        ServerPlayConnectionEvents.JOIN.register((a, b, c) -> {
+        ServerPlayConnectionEvents.JOIN.register((listener, sender, server) -> {
             if (client == null) {
                 LOGGER.error("Websocket client is null, cannot grant wallet nor calculate welfare.");
                 return;
             }
-            grantWallet(a.player.getScoreboardName(), a.player.getUUID(), a.player);
-            checkTransfers(a.player);
-            BigDecimal finalWelfare = calculateWelfare();
-            executeWelfareForPlayer(a.player, finalWelfare);
+            grantWallet(listener.player.getGameProfile());
+            checkTransfers(listener.player);
+            BigDecimal welfare = calculateWelfare();
+            executeWelfareForPlayer(listener.player, welfare);
         });
 
         CommandRegistrationCallback.EVENT.register(PayCommand::register);
         CommandRegistrationCallback.EVENT.register(BalanceCommand::register);
         CommandRegistrationCallback.EVENT.register(KromerCommand::register);
-        CommandRegistrationCallback.EVENT.register(
-                TransactionsCommand::register
-        );
+        CommandRegistrationCallback.EVENT.register(TransactionsCommand::register);
 
         config = ConfigBeanFactory.create(
                 ConfigFactory.parseFile(

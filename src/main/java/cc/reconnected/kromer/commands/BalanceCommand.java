@@ -8,8 +8,9 @@ import cc.reconnected.kromer.networking.BalanceResponsePacket;
 import com.mojang.authlib.GameProfile;
 import com.mojang.brigadier.CommandDispatcher;
 import com.mojang.brigadier.context.CommandContext;
+import me.alexdevs.solstice.Solstice;
+import me.alexdevs.solstice.api.command.LocalGameProfile;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
-import net.minecraft.ChatFormatting;
 import net.minecraft.commands.CommandBuildContext;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
@@ -17,7 +18,7 @@ import net.minecraft.network.chat.Component;
 import ovh.sad.jkromer.http.Result;
 import ovh.sad.jkromer.http.addresses.GetAddress;
 
-import java.util.Objects;
+import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 
 import static cc.reconnected.kromer.Kromer.NETWORK_EXECUTOR;
@@ -31,14 +32,21 @@ public class BalanceCommand {
             Commands.CommandSelection environment
     ) {
         dispatcher.register(
-                literal("balance").then(
-                        argument("recipient", AddressArgumentType.address()).executes(e -> runBalance(e, true))
-                ).executes(e -> runBalance(e, false))
+                literal("balance")
+                        .then(argument("recipient", AddressArgumentType.address())
+                                .suggests(LocalGameProfile::suggest)
+                                .executes(e -> runBalance(e, true))
+                        )
+                        .executes(e -> runBalance(e, false))
         );
+
         dispatcher.register(
-                literal("bal").then(
-                        argument("recipient", AddressArgumentType.address()).executes(e -> runBalance(e, true))
-                ).executes(e -> runBalance(e, false))
+                literal("bal")
+                        .then(argument("recipient", AddressArgumentType.address())
+                                .suggests(LocalGameProfile::suggest)
+                                .executes(e -> runBalance(e, true))
+                        )
+                        .executes(e -> runBalance(e, false))
         );
     }
 
@@ -52,46 +60,26 @@ public class BalanceCommand {
         if (hasRecipient) {
             String recipientInput = AddressArgumentType.getAddress(context, "recipient");
 
-            if (recipientInput.matches("^k[a-z0-9]{9}$") || recipientInput.matches("^(?:([a-z0-9-_]{1,32})@)?([a-z0-9]{1,64})\\.kro$")) {
+            if (recipientInput.matches("^k[a-z0-9]{9}$")
+                    || recipientInput.matches("^(?:([a-z0-9-_]{1,32})@)?([a-z0-9]{1,64})\\.kro$")) {
                 kristAddress = recipientInput;
             } else {
-                GameProfile otherProfile = null;
-                try {
-                    otherProfile = Objects.requireNonNull(context
-                                    .getSource()
-                                    .getServer()
-                                    .getProfileCache())
-                            .get(recipientInput)
-                            .orElse(null);
-                } catch (Exception ignored) {
-                }
+
+                GameProfile otherProfile = Solstice.getUserCache()
+                        .getByName(recipientInput)
+                        .orElse(null);
 
                 if (otherProfile == null) {
-                    context
-                            .getSource()
-                            .sendSuccess(
-                                    () ->
-                                            Component.literal(
-                                                    "User not found and not a valid address."
-                                            ).withStyle(ChatFormatting.RED),
-                                    false
-                            );
+                    context.getSource().sendFailure(Locale.parse(Locale.Messages.USER_OR_ADDRESS_NOT_FOUND));
                     return 0;
                 }
 
-                Wallet otherWallet = Kromer.database.getWallet(
-                        otherProfile.getId()
-                );
+                Wallet otherWallet = Kromer.database.getWallet(otherProfile.getId());
+
                 if (otherWallet == null) {
                     context
                             .getSource()
-                            .sendSuccess(
-                                    () ->
-                                            Component.literal(
-                                                    "Other user does not have a wallet. They haven't joined recently."
-                                            ).withStyle(ChatFormatting.RED),
-                                    false
-                            );
+                            .sendFailure(Locale.parse(Locale.Messages.OTHER_USER_NO_WALLET));
                     return 0;
                 }
 
@@ -106,65 +94,43 @@ public class BalanceCommand {
         if (!Kromer.kromerStatus) {
             context
                     .getSource()
-                    .sendSuccess(
-                            () -> Locale.use(Locale.Messages.KROMER_UNAVAILABLE),
-                            false
-                    );
+                    .sendFailure(Locale.parse(Locale.Messages.KROMER_UNAVAILABLE));
             return 0;
         }
 
         if (myWallet == null) {
             context
                     .getSource()
-                    .sendSuccess(
-                            () -> Locale.use(Locale.Messages.NO_WALLET),
-                            false
-                    );
+                    .sendFailure(Locale.parse(Locale.Messages.NO_OWN_WALLET));
             return 0;
         }
 
         CompletableFuture
                 .supplyAsync(() -> GetAddress.execute(kristAddress == null ? myWallet.address : kristAddress), NETWORK_EXECUTOR)
                 .thenCompose(future -> future)
-                .whenComplete((b, ex) -> {
+                .whenComplete((result, ex) -> {
                     if (ex != null) {
-                        source.getServer().execute(() ->
-                                source.sendSuccess(() -> Locale.use(Locale.Messages.ERROR, ex.getMessage()), false)
-                        );
+                        source.sendFailure(Locale.error(ex.getMessage()));
                         return;
                     }
 
-                    if (b instanceof Result.Ok<GetAddress.GetAddressBody> ok) {
+                    if (result instanceof Result.Ok<GetAddress.GetAddressBody> ok) {
                         if (kristAddress == null) {
-                            source.getServer().execute(() -> {
-                                source.sendSuccess(
-                                        () -> Locale.use(Locale.Messages.BALANCE, ok.value().address.balance),
-                                        false
-                                );
-
-                                Kromer.balanceCache.put(myWallet.address, ok.value().address.balance);
-                            });
+                            source.sendSuccess(() -> Locale.parse(Locale.Messages.BALANCE, ok.value().address.balance), false);
+                            Kromer.balanceCache.put(myWallet.address, ok.value().address.balance);
                         } else {
-                            source.getServer().execute(() -> {
-                                source.sendSuccess(
-                                        () -> Locale.use(Locale.Messages.BALANCE_OTHERS, kristAddress, ok.value().address.balance),
-                                        false
-                                );
-
-                                Kromer.balanceCache.put(kristAddress, ok.value().address.balance);
-                            });
+                            source.sendSuccess(() -> Locale.parse(Locale.Messages.BALANCE_OTHERS, ok.value().address.balance,
+                                    Map.of(
+                                            "address", Component.literal(kristAddress)
+                                    )), false);
+                            Kromer.balanceCache.put(kristAddress, ok.value().address.balance);
                         }
 
                         if (!hasRecipient) {
                             ServerPlayNetworking.send(player, BalanceResponsePacket.ID, BalanceResponsePacket.serialise(ok.value().address.balance));
                         }
-                    } else if (b instanceof Result.Err<GetAddress.GetAddressBody> err) {
-                        source.getServer().execute(() ->
-                                source.sendSuccess(
-                                        () -> Locale.use(Locale.Messages.ERROR, err.error()),
-                                        false
-                                )
-                        );
+                    } else if (result instanceof Result.Err<GetAddress.GetAddressBody> err) {
+                        source.sendFailure(Locale.error(err.error().toString()));
                     }
                 });
 
