@@ -4,7 +4,7 @@ import cc.reconnected.kromer.Kromer;
 import cc.reconnected.kromer.Locale;
 import cc.reconnected.kromer.arguments.AddressArgumentType;
 import cc.reconnected.kromer.database.Wallet;
-import cc.reconnected.kromer.networking.BalanceResponsePacket;
+import cc.reconnected.kromer.networking.BalanceResponsePayload;
 import com.mojang.authlib.GameProfile;
 import com.mojang.brigadier.CommandDispatcher;
 import com.mojang.brigadier.context.CommandContext;
@@ -127,7 +127,7 @@ public class BalanceCommand {
                         }
 
                         if (!hasRecipient) {
-                            ServerPlayNetworking.send(player, BalanceResponsePacket.ID, BalanceResponsePacket.serialise(ok.value().address.balance));
+                            ServerPlayNetworking.send(player, new BalanceResponsePayload(ok.value().address.balance));
                         }
                     } else if (result instanceof Result.Err<GetAddress.GetAddressBody> err) {
                         source.sendFailure(Locale.error(err.error().toString()));

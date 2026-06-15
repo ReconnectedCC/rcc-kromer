@@ -3,10 +3,9 @@ package cc.reconnected.kromer.client;
 import cc.reconnected.kromer.arguments.AddressArgumentType;
 import cc.reconnected.kromer.arguments.KromerArgumentInfo;
 import cc.reconnected.kromer.arguments.KromerArgumentType;
-import cc.reconnected.kromer.networking.BalanceRequestPacket;
-import cc.reconnected.kromer.networking.BalanceResponsePacket;
-import cc.reconnected.kromer.networking.TransactionPacket;
-import io.netty.buffer.Unpooled;
+import cc.reconnected.kromer.networking.BalanceRequestPayload;
+import cc.reconnected.kromer.networking.BalanceResponsePayload;
+import cc.reconnected.kromer.networking.TransactionPayload;
 import me.shedaniel.autoconfig.AutoConfig;
 import me.shedaniel.autoconfig.ConfigHolder;
 import me.shedaniel.autoconfig.serializer.GsonConfigSerializer;
@@ -15,16 +14,15 @@ import net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.fabricmc.fabric.api.client.screen.v1.ScreenEvents;
 import net.fabricmc.fabric.api.command.v2.ArgumentTypeRegistry;
+import net.fabricmc.fabric.api.networking.v1.PayloadTypeRegistry;
 import net.minecraft.client.gui.components.toasts.SystemToast;
 import net.minecraft.client.gui.screens.PauseScreen;
 import net.minecraft.commands.synchronization.SingletonArgumentInfo;
-import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import ovh.sad.jkromer.models.Transaction;
 
 import java.math.BigDecimal;
-import java.math.RoundingMode;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -34,33 +32,34 @@ public class MainClient implements ClientModInitializer {
     @Override
     public void onInitializeClient() {
         ArgumentTypeRegistry.registerArgumentType(
-                new ResourceLocation("rcc-kromer", "kromer_amount"),
+                ResourceLocation.fromNamespaceAndPath("rcc-kromer", "kromer_amount"),
                 KromerArgumentType.class,
                 new KromerArgumentInfo()
         );
         ArgumentTypeRegistry.registerArgumentType(
-                new ResourceLocation("rcc-kromer", "kromer_address"),
+                ResourceLocation.fromNamespaceAndPath("rcc-kromer", "kromer_address"),
                 AddressArgumentType.class,
                 SingletonArgumentInfo.contextFree(AddressArgumentType::address)
         );
 
         AutoConfig.register(KromerClientConfig.class, GsonConfigSerializer::new);
         ConfigHolder<KromerClientConfig> config = AutoConfig.getConfigHolder(KromerClientConfig.class);
+        PayloadTypeRegistry.playC2S().register(BalanceRequestPayload.TYPE, BalanceRequestPayload.CODEC);
+        PayloadTypeRegistry.playS2C().register(TransactionPayload.TYPE, TransactionPayload.CODEC);
+        PayloadTypeRegistry.playS2C().register(BalanceResponsePayload.TYPE, BalanceResponsePayload.CODEC);
+        ClientPlayConnectionEvents.JOIN.register((packetListener, sender, client) -> ClientPlayNetworking.send(new BalanceRequestPayload()));
 
-        ClientPlayConnectionEvents.JOIN.register((packetListener, sender, client) -> ClientPlayNetworking.send(BalanceRequestPacket.ID, new FriendlyByteBuf(Unpooled.buffer())));
 
-
-        ClientPlayNetworking.registerGlobalReceiver(TransactionPacket.ID, (client, handler, buf, responseSender) -> {
-            Transaction tx = TransactionPacket.readTransaction(buf);
-            BigDecimal decimal = new BigDecimal(buf.readUtf())
-                    .setScale(2, RoundingMode.HALF_EVEN);
+        ClientPlayNetworking.registerGlobalReceiver(TransactionPayload.TYPE, (payload, ctx) -> {
+            Transaction tx = payload.tx();
+            BigDecimal decimal = payload.balance();
 
             if (Objects.equals(decimal.toString(), "-1")) {
                 balance.set(decimal);
             }
-            if (client.getToasts().queued.size() < 3 && config.getConfig().toastPopup) {
-                client.getToasts().addToast(
-                        SystemToast.multiline(client, SystemToast.SystemToastIds.TUTORIAL_HINT,
+            if (ctx.client().getToasts().queued.size() < 3 && config.getConfig().toastPopup) {
+                ctx.client().getToasts().addToast(
+                        SystemToast.multiline(ctx.client(), SystemToast.SystemToastId.PERIODIC_NOTIFICATION,
                                 Component.literal("Transaction"),
                                 Component.literal(String.format("Incoming %.02f KRO from %s! Balance is now %.02f KRO.", tx.value, tx.from, decimal))
                         )
@@ -68,8 +67,7 @@ public class MainClient implements ClientModInitializer {
             }
         });
 
-        ClientPlayNetworking.registerGlobalReceiver(BalanceResponsePacket.ID, (client, handler, buf, responseSender) -> balance.set(new BigDecimal(buf.readUtf())
-                .setScale(2, RoundingMode.HALF_EVEN)));
+        ClientPlayNetworking.registerGlobalReceiver(BalanceResponsePayload.TYPE, (payload, ctx) -> balance.set(payload.balance()));
 
         ScreenEvents.AFTER_INIT.register((mc, screen, sw, sh) -> {
             if (screen instanceof PauseScreen) {

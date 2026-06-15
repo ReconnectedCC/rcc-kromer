@@ -21,9 +21,9 @@ import cc.reconnected.kromer.common.CommonMeta;
 import cc.reconnected.kromer.database.Database;
 import cc.reconnected.kromer.database.Wallet;
 import cc.reconnected.kromer.database.WelfareData;
-import cc.reconnected.kromer.networking.BalanceRequestPacket;
-import cc.reconnected.kromer.networking.BalanceResponsePacket;
-import cc.reconnected.kromer.networking.TransactionPacket;
+import cc.reconnected.kromer.networking.BalanceRequestPayload;
+import cc.reconnected.kromer.networking.BalanceResponsePayload;
+import cc.reconnected.kromer.networking.TransactionPayload;
 import com.mojang.authlib.GameProfile;
 import com.typesafe.config.ConfigBeanFactory;
 import com.typesafe.config.ConfigFactory;
@@ -235,7 +235,7 @@ public class Kromer implements DedicatedServerModInitializer {
 
                     if (b instanceof Result.Ok<GiveMoney.GiveMoneyResponse> ok) {
                         balanceCache.put(wallet.address, ok.value().wallet.balance);
-                        ServerPlayNetworking.send(player, BalanceResponsePacket.ID, BalanceResponsePacket.serialise(ok.value().wallet.balance));
+                        ServerPlayNetworking.send(player, new BalanceResponsePayload(ok.value().wallet.balance));
                         welfareData.oldActiveTime = activeTime;
                     }
                 });
@@ -275,7 +275,7 @@ public class Kromer implements DedicatedServerModInitializer {
             }
         }
 
-        ServerPlayNetworking.send(player, TransactionPacket.ID, TransactionPacket.serialise(transaction, balVal));
+        ServerPlayNetworking.send(player, new TransactionPayload(transaction, balVal));
 
         var commonMeta = CommonMeta.fromString(transaction.metadata);
         if (commonMeta.keywordEntries.containsKey("error")) {
@@ -429,8 +429,8 @@ public class Kromer implements DedicatedServerModInitializer {
     public void onInitializeServer() {
         instance = this;
 
-        ArgumentTypeRegistry.registerArgumentType(new ResourceLocation("rcc-kromer", "kromer_amount"), KromerArgumentType.class, new KromerArgumentInfo());
-        ArgumentTypeRegistry.registerArgumentType(new ResourceLocation("rcc-kromer", "kromer_address"), AddressArgumentType.class, SingletonArgumentInfo.contextFree(AddressArgumentType::address));
+        ArgumentTypeRegistry.registerArgumentType(ResourceLocation.fromNamespaceAndPath("rcc-kromer", "kromer_amount"), KromerArgumentType.class, new KromerArgumentInfo());
+        ArgumentTypeRegistry.registerArgumentType(ResourceLocation.fromNamespaceAndPath("rcc-kromer", "kromer_address"), AddressArgumentType.class, SingletonArgumentInfo.contextFree(AddressArgumentType::address));
         Flyway flyway = Flyway.configure()
                 .dataSource("jdbc:sqlite:rcc-kromer.sqlite", null, null)
                 .baselineOnMigrate(true)
@@ -444,11 +444,11 @@ public class Kromer implements DedicatedServerModInitializer {
                 WelfareData::new
         );
 
-        ServerPlayNetworking.registerGlobalReceiver(BalanceRequestPacket.ID,
-                (server, player, handler, buf, responseSender) -> server.execute(() -> {
-                    Wallet wallet = database.getWallet(player.getUUID());
+        ServerPlayNetworking.registerGlobalReceiver(BalanceRequestPayload.TYPE,
+                (packet, context) -> context.server().execute(() -> {
+                    Wallet wallet = database.getWallet(context.player().getUUID());
                     if (wallet == null) {
-                        LOGGER.error("BalanceRequestPacket: user " + player.getUUID().toString() + " has no valid wallet.");
+                        LOGGER.error("BalanceRequestPacket: user " + context.player().getUUID().toString() + " has no valid wallet.");
                         return;
                     }
 
@@ -460,18 +460,18 @@ public class Kromer implements DedicatedServerModInitializer {
                                 .thenCompose(future -> future)
                                 .whenComplete((b, ex) -> {
                                     if (ex != null) {
-                                        LOGGER.error("BalanceRequestPacket: for user " + player.getUUID().toString() + " failed balance retrival due to " + ex.getMessage());
+                                        LOGGER.error("BalanceRequestPacket: for user " + context.player().getUUID().toString() + " failed balance retrival due to " + ex.getMessage());
                                         return;
                                     }
 
                                     if (b instanceof Result.Ok<GetAddress.GetAddressBody> ok) {
                                         balance.set(ok.value().address.balance);
                                         balanceCache.put(wallet.address, ok.value().address.balance);
-                                        ServerPlayNetworking.send(player, BalanceResponsePacket.ID, BalanceResponsePacket.serialise(ok.value().address.balance));
+                                        ServerPlayNetworking.send(context.player(), new BalanceResponsePayload(ok.value().address.balance));
                                     }
                                 });
                     } else {
-                        ServerPlayNetworking.send(player, BalanceResponsePacket.ID, BalanceResponsePacket.serialise(balance.get()));
+                        ServerPlayNetworking.send(context.player(), new BalanceResponsePayload(balance.get()));
                     }
                 })
         );

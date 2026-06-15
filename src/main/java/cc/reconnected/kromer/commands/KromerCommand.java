@@ -5,7 +5,7 @@ import cc.reconnected.kromer.Locale;
 import cc.reconnected.kromer.arguments.KromerArgumentType;
 import cc.reconnected.kromer.database.Wallet;
 import cc.reconnected.kromer.database.WelfareData;
-import cc.reconnected.kromer.networking.BalanceResponsePacket;
+import cc.reconnected.kromer.networking.BalanceResponsePayload;
 import com.mojang.authlib.GameProfile;
 import com.mojang.brigadier.Command;
 import com.mojang.brigadier.CommandDispatcher;
@@ -135,7 +135,7 @@ public class KromerCommand {
                                                 if (result instanceof Result.Ok<GiveMoney.GiveMoneyResponse> response) {
                                                     balanceCache.put(response.value().wallet.address, response.value().wallet.balance);
                                                     if (player != null) {
-                                                        ServerPlayNetworking.send(player, BalanceResponsePacket.ID, BalanceResponsePacket.serialise(response.value().wallet.balance));
+                                                        ServerPlayNetworking.send(player, new BalanceResponsePayload(response.value().wallet.balance));
                                                     }
 
                                                     source.sendSuccess(() -> Locale.parse(Locale.Messages.ADDED_KRO, amount,
