@@ -18,7 +18,7 @@ public record BalanceResponsePayload(BigDecimal balance) implements CustomPacket
             (buf)  -> {try {
                 return new BalanceResponsePayload(new BigDecimal(buf.readUtf()));
             } catch (NumberFormatException e) {
-                return new BalanceResponsePayload(BigDecimal.ZERO);
+                return new BalanceResponsePayload(BigDecimal.valueOf(-2.0));
             }});
     //TODO: Remove try catch once useless/unlikely?
     @Override

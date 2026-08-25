@@ -23,6 +23,7 @@ import net.minecraft.resources.ResourceLocation;
 import ovh.sad.jkromer.models.Transaction;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -90,6 +91,8 @@ public class MainClient implements ClientModInitializer {
                         } else if (Objects.equals(bal.toString(), "-2.0")) {
                             guiGraphics.drawString(mc.font, "Error!", x, y, 0xAA0000, true);
                         } else {
+                            // format bal to 2 decimal places
+                            bal = bal.setScale(2, RoundingMode.DOWN);
                             guiGraphics.drawString(mc.font, bal + "KRO", x, y, 0x00AA00, true);
                         }
                     }
