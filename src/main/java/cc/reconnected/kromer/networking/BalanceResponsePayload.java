@@ -1,9 +1,5 @@
 package cc.reconnected.kromer.networking;
 
-import com.mojang.serialization.Codec;
-import com.mojang.serialization.codecs.PrimitiveCodec;
-import net.minecraft.core.BlockPos;
-import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.network.RegistryFriendlyByteBuf;
 import net.minecraft.network.codec.StreamCodec;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
@@ -18,9 +14,13 @@ public record BalanceResponsePayload(BigDecimal balance) implements CustomPacket
 
 
     public static final StreamCodec<RegistryFriendlyByteBuf, BalanceResponsePayload> CODEC = StreamCodec.of(
-            (buf,balance) ->  buf.writeUtf(balance.toString()),
-            (buf)  -> new BalanceResponsePayload(new BigDecimal(buf.readUtf()))
-    );
+            (buf,payload) ->  buf.writeUtf(payload.balance.toString()),
+            (buf)  -> {try {
+                return new BalanceResponsePayload(new BigDecimal(buf.readUtf()));
+            } catch (NumberFormatException e) {
+                return new BalanceResponsePayload(BigDecimal.ZERO);
+            }});
+    //TODO: Remove try catch once useless/unlikely?
     @Override
     public @NotNull Type<? extends CustomPacketPayload> type() {
         return TYPE;

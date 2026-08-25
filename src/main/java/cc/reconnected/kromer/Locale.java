@@ -1,9 +1,8 @@
 package cc.reconnected.kromer;
 
-import eu.pb4.placeholders.api.TextParserUtils;
 import eu.pb4.placeholders.api.node.LiteralNode;
 import eu.pb4.placeholders.api.node.parent.ParentNode;
-import eu.pb4.placeholders.api.parsers.TextParserV1;
+import eu.pb4.placeholders.api.parsers.TagParser;
 import me.alexdevs.solstice.api.text.Format;
 import net.minecraft.network.chat.Component;
 
@@ -130,6 +129,7 @@ public class Locale {
         TRANSACTION_MINED(" <gold><gray><hover:show_text:'${datetime}'>[${date}]</hover></gray> <aqua><hover:show_text:'${type}'>#${id}</hover></aqua>: ⛏ <gray>${amount} KRO</gray>.</gold>"),
         TRANSACTION_OTHER(" <gold><gray><hover:show_text:'${datetime}'>[${date}]</hover></gray> <aqua><hover:show_text:'${type}'>#${id}</hover></aqua>: <yellow>${sender}</yellow> → <gray>${amount} KRO</gray> → <yellow>${recipient}</yellow>.</gold>"),
         TRANSACTION_METADATA("\n<gray>${metadata}</gray>"),
+        SAME_WALLET_TRANSFER("<gold>You cannot send KRO to yourself.</gold>")
         ;
 
         private final String template;
@@ -139,15 +139,15 @@ public class Locale {
         }
 
         public String raw(Object... args) {
-            return String.format(java.util.Locale.US, template, args);
+            return String.format(java.util.Locale.ROOT, template, args);
         }
 
         public Component asText(Object... args) {
-            return TextParserUtils.formatText(raw(args));
+            return TagParser.SIMPLIFIED_TEXT_FORMAT.parseNode(raw(args)).toText();
         }
 
         public Component asSafeText(Object... args) {
-            return (new ParentNode(TextParserV1.SAFE.parseNodes(new LiteralNode(raw(args))))).toText(null, true);
+            return (new ParentNode(TagParser.SIMPLIFIED_TEXT_FORMAT_SAFE.parseNodes(new LiteralNode(raw(args))))).toText(null, true);
         }
     }
 }

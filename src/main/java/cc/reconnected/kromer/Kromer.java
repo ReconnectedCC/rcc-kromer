@@ -35,6 +35,7 @@ import net.fabricmc.api.DedicatedServerModInitializer;
 import net.fabricmc.fabric.api.command.v2.ArgumentTypeRegistry;
 import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
+import net.fabricmc.fabric.api.networking.v1.PayloadTypeRegistry;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
 import net.fabricmc.loader.api.FabricLoader;
@@ -443,7 +444,9 @@ public class Kromer implements DedicatedServerModInitializer {
                 WelfareData.class,
                 WelfareData::new
         );
-
+        PayloadTypeRegistry.playC2S().register(BalanceRequestPayload.TYPE, BalanceRequestPayload.CODEC);
+        PayloadTypeRegistry.playS2C().register(TransactionPayload.TYPE, TransactionPayload.CODEC);
+        PayloadTypeRegistry.playS2C().register(BalanceResponsePayload.TYPE, BalanceResponsePayload.CODEC);
         ServerPlayNetworking.registerGlobalReceiver(BalanceRequestPayload.TYPE,
                 (packet, context) -> context.server().execute(() -> {
                     Wallet wallet = database.getWallet(context.player().getUUID());
