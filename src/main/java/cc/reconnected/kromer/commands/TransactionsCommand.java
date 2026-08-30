@@ -156,7 +156,7 @@ public class TransactionsCommand {
                         source.sendSuccess(() -> finalComponent, false);
 
                     } else if (result instanceof Result.Err<GetAddressTransactions.GetAddressTransactionsBody> err) {
-                        source.sendFailure(Locale.error(err.error().toString()));
+                        source.sendFailure(Locale.error(err.error()));
                     }
                 });
 

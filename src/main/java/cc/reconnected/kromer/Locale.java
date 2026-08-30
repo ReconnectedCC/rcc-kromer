@@ -5,13 +5,27 @@ import eu.pb4.placeholders.api.node.parent.ParentNode;
 import eu.pb4.placeholders.api.parsers.TagParser;
 import me.alexdevs.solstice.api.text.Format;
 import net.minecraft.network.chat.Component;
+import ovh.sad.jkromer.Errors;
 
 import java.math.BigDecimal;
 import java.util.HashMap;
 import java.util.Map;
 
+import static java.util.Map.entry;
+
 public class Locale {
     public static final String BUTTON_FORMAT = "<click:copy_to_clipboard:'${content}'><hover:show_text:'${hoverText}'><aqua>[</aqua>${label}<aqua>]</aqua></hover></click>";
+
+    private static final Map<String, String> ERROR_MESSAGES = Map.ofEntries(
+            entry("invalid_parameter",    "Invalid parameter provided."),
+            entry("address_not_found",    "Wallet address not found."),
+            entry("name_taken",           "This name is already taken."),
+            entry("insufficient_funds",   "Insufficient balance for this transaction."),
+            entry("not_name_owner",       "You don't own this name."),
+            entry("name_not_found",       "Name does not exist in the system."),
+            entry("internal_problem",     "Internal server error – please try again later."),
+            entry("same_wallet_transfer", "Cannot transfer funds to the same wallet.")
+    );
 
     public static Component parse(Messages message) {
         return Format.parse(message.template);
@@ -34,8 +48,14 @@ public class Locale {
         return parse(message, map);
     }
 
-    public static Component error(String error) {
-        return parse(Locale.Messages.ERROR, Map.of("error", Component.literal(error)));
+    public static Component error(Throwable error) {
+        return parse(Locale.Messages.ERROR, Map.of("error", Component.literal(error.getMessage())));
+    }
+
+    public static Component error(Errors.ErrorResponse error) {
+        String code = error.error();
+        String pretty = ERROR_MESSAGES.getOrDefault(code, "An unexpected error occurred.");
+        return parse(Locale.Messages.ERROR, Map.of("error", Component.literal(pretty)));
     }
 
     public static Component buttonCopy(Component label, Component hoverText, String content) {

@@ -30,6 +30,7 @@ public class KromerWebsockets extends AbstractKromerClient {
 
     @Override
     protected void onDisconnected(int code, String reason, boolean remote) {
+        Kromer.LOGGER.error("Websocket client disconnected, code {}, reason {}", code, reason);
         Kromer.kromerStatus = false;
     }
 
