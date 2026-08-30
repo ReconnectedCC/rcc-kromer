@@ -54,10 +54,8 @@ public class MainClient implements ClientModInitializer {
         ClientPlayNetworking.registerGlobalReceiver(TransactionPayload.TYPE, (payload, ctx) -> {
             Transaction tx = payload.tx();
             BigDecimal decimal = payload.balance();
+            balance.set(decimal);
 
-            if (Objects.equals(decimal.toString(), "-1")) {
-                balance.set(decimal);
-            }
             if (ctx.client().getToasts().queued.size() < 3 && config.getConfig().toastPopup) {
                 ctx.client().getToasts().addToast(
                         SystemToast.multiline(ctx.client(), SystemToast.SystemToastId.PERIODIC_NOTIFICATION,

@@ -110,7 +110,7 @@ public class BalanceCommand {
                 .thenCompose(future -> future)
                 .whenComplete((result, ex) -> {
                     if (ex != null) {
-                        source.sendFailure(Locale.error(ex.getMessage()));
+                        source.sendFailure(Locale.error(ex));
                         return;
                     }
 
@@ -130,7 +130,7 @@ public class BalanceCommand {
                             ServerPlayNetworking.send(player, new BalanceResponsePayload(ok.value().address.balance));
                         }
                     } else if (result instanceof Result.Err<GetAddress.GetAddressBody> err) {
-                        source.sendFailure(Locale.error(err.error().toString()));
+                        source.sendFailure(Locale.error(err.error()));
                     }
                 });
 

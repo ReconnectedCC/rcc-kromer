@@ -11,21 +11,34 @@ import com.mojang.brigadier.CommandDispatcher;
 import com.mojang.brigadier.arguments.StringArgumentType;
 import com.mojang.brigadier.context.CommandContext;
 import com.mojang.brigadier.exceptions.CommandSyntaxException;
+import com.mojang.brigadier.suggestion.SuggestionProvider;
+import com.mojang.brigadier.suggestion.Suggestions;
+import com.mojang.brigadier.suggestion.SuggestionsBuilder;
+import dan200.computercraft.core.terminal.Terminal;
+import dan200.computercraft.shared.peripheral.monitor.MonitorBlockEntity;
+import dan200.computercraft.shared.peripheral.monitor.ServerMonitor;
 import me.alexdevs.solstice.Solstice;
 import me.alexdevs.solstice.api.text.Components;
 import net.minecraft.commands.CommandBuildContext;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
+import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
+import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.level.block.entity.BlockEntity;
 import ovh.sad.jkromer.http.Result;
 import ovh.sad.jkromer.http.transactions.MakeTransaction;
 
 import java.math.BigDecimal;
 import java.util.HashMap;
+import java.util.LinkedHashSet;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import static cc.reconnected.kromer.Kromer.NETWORK_EXECUTOR;
 import static net.minecraft.commands.Commands.argument;
@@ -34,6 +47,80 @@ import static net.minecraft.commands.Commands.literal;
 public class PayCommand {
     private static final Map<UUID, PendingPayment> pendingPayments = new HashMap<>();
 
+    private static final Pattern KROMER_ADDRESS = Pattern.compile("\\bk[a-z0-9]{9}\\b");
+    private static final Pattern KROMER_KRO_ADDRESS = Pattern.compile("\\b(?:([a-z0-9-_]{1,32})@)?([a-z0-9]{1,64})\\.kro\\b");
+
+    private static final int MONITOR_SCAN_RADIUS = 4;
+
+    private static final SuggestionProvider<CommandSourceStack> SUGGEST_RECIPIENTS = PayCommand::suggestRecipients;
+
+    private static CompletableFuture<Suggestions> suggestRecipients(
+            CommandContext<CommandSourceStack> context,
+            SuggestionsBuilder builder
+    ) {
+        String remaining = builder.getRemaining().toLowerCase();
+        CommandSourceStack source = context.getSource();
+        ServerPlayer self = source.getPlayer();
+
+        for (ServerPlayer player : source.getServer().getPlayerList().getPlayers()) {
+            if (self != null && player.getUUID().equals(self.getUUID())) {
+                continue;
+            }
+            String name = player.getGameProfile().getName();
+            if (name.toLowerCase().startsWith(remaining)) {
+                builder.suggest(name, Component.literal("Pay " + name));
+            }
+        }
+
+        if (self != null) {
+            for (String addr : findAddressesOnNearbyMonitors(self)) {
+                if (addr.toLowerCase().startsWith(remaining)) {
+                    builder.suggest(addr, Component.literal("Pay address seen on monitor"));
+                }
+            }
+        }
+
+        return builder.buildFuture();
+    }
+
+    private static Set<String> findAddressesOnNearbyMonitors(ServerPlayer player) {
+        Set<String> found = new LinkedHashSet<>();
+
+        if (!(player.level() instanceof ServerLevel level)) {
+            return found;
+        }
+
+        BlockPos center = player.blockPosition();
+        BlockPos min = center.offset(-MONITOR_SCAN_RADIUS, -MONITOR_SCAN_RADIUS, -MONITOR_SCAN_RADIUS);
+        BlockPos max = center.offset(MONITOR_SCAN_RADIUS, MONITOR_SCAN_RADIUS, MONITOR_SCAN_RADIUS);
+
+        for (BlockPos pos : BlockPos.betweenClosed(min, max)) {
+            if (!level.isLoaded(pos)) continue;
+
+            BlockEntity be = level.getBlockEntity(pos);
+            if (!(be instanceof MonitorBlockEntity monitorTile)) continue;
+
+            ServerMonitor serverMonitor = monitorTile.getCachedServerMonitor();
+            if (serverMonitor == null) continue;
+
+            Terminal terminal = serverMonitor.getTerminal();
+            if (terminal == null) continue;
+
+            Matcher m1 = KROMER_ADDRESS.matcher("");
+            Matcher m2 = KROMER_KRO_ADDRESS.matcher("");
+
+            for (int y = 0; y < terminal.getHeight(); y++) {
+                String line = terminal.getLine(y).toString();
+                m1.reset(line);
+                while (m1.find()) found.add(m1.group());
+                m2.reset(line);
+                while (m2.find()) found.add(m2.group());
+            }
+        }
+
+        return found;
+    }
+
     public static void register(
             CommandDispatcher<CommandSourceStack> dispatcher,
             CommandBuildContext registryAccess,
@@ -41,7 +128,9 @@ public class PayCommand {
     ) {
         dispatcher.register(
                 literal("pay")
-                        .then(argument("recipient", AddressArgumentType.address()).then(
+                        .then(argument("recipient", AddressArgumentType.address())
+                                .suggests(SUGGEST_RECIPIENTS)
+                                .then(
                                         argument("amount", KromerArgumentType.kromerArg())
                                                 .executes(PayCommand::executePay)
                                                 .then(
@@ -72,7 +161,7 @@ public class PayCommand {
                 .thenCompose(future -> future)
                 .whenComplete((result, ex) -> context.getSource().getServer().execute(() -> {
                     if (ex != null) {
-                        source.sendFailure(Locale.error(ex.getMessage()));
+                        source.sendFailure(Locale.error(ex));
                         return;
                     }
 
@@ -81,7 +170,7 @@ public class PayCommand {
                                 "recipient", Component.literal(payment.to)
                         )), false);
                     } else if (result instanceof Result.Err<MakeTransaction.MakeTransactionResponse> err) {
-                        source.sendFailure(Locale.error(err.error().toString()));
+                        source.sendFailure(Locale.error(err.error()));
                     }
                 }));
 
@@ -105,8 +194,8 @@ public class PayCommand {
             return 0;
         }
 
-        if (recipientInput.matches("^k[a-z0-9]{9}$")
-                || recipientInput.matches("^(?:([a-z0-9-_]{1,32})@)?([a-z0-9]{1,64})\\.kro$")) {
+        if (KROMER_ADDRESS.matcher(recipientInput).matches()
+                || KROMER_KRO_ADDRESS.matcher(recipientInput).matches()) {
             kristAddress = recipientInput;
             recipientName = recipientInput;
         } else {

@@ -57,7 +57,7 @@ public class KromerCommand {
                     .thenCompose(f -> f)
                     .whenComplete((result, ex) -> {
                         if (ex != null) {
-                            context.getSource().sendFailure(Locale.error(ex.getMessage()));
+                            context.getSource().sendFailure(Locale.error(ex));
                             return;
                         }
 
@@ -68,7 +68,7 @@ public class KromerCommand {
                             )), false);
 
                         } else if (result instanceof Result.Err<GetMotd.GetMotdBody> err) {
-                            context.getSource().sendFailure(Locale.error(err.error().toString()));
+                            context.getSource().sendFailure(Locale.error(err.error()));
                         }
                     });
             return 1;
@@ -128,7 +128,7 @@ public class KromerCommand {
                                             .thenCompose(f -> f)
                                             .whenComplete((result, ex) -> {
                                                 if (ex != null) {
-                                                    source.sendFailure(Locale.error(ex.getMessage()));
+                                                    source.sendFailure(Locale.error(ex));
                                                     return;
                                                 }
 
@@ -144,7 +144,7 @@ public class KromerCommand {
                                                             )
                                                     ), true);
                                                 } else if (result instanceof Result.Err<GiveMoney.GiveMoneyResponse> error) {
-                                                    source.sendFailure(Locale.error(error.error().toString()));
+                                                    source.sendFailure(Locale.error(error.error()));
                                                 }
                                             });
                                     return Command.SINGLE_SUCCESS;
@@ -219,7 +219,7 @@ public class KromerCommand {
                             .thenCompose(f -> f)
                             .whenComplete((addressResponse, ex) -> {
                                 if (ex != null) {
-                                    source.sendFailure(Locale.error(ex.getMessage()));
+                                    source.sendFailure(Locale.error(ex));
                                     return;
                                 }
                                 if (addressResponse instanceof Result.Ok<GetAddress.GetAddressBody> ok) {

@@ -260,55 +260,47 @@ public class Kromer implements DedicatedServerModInitializer {
         return found ? String.format("%s (%s)", userName, address) : address;
     }
 
-    public static void notifyTransfer(
-            ServerPlayer player,
-            Transaction transaction
-    ) {
-        BigDecimal balVal = Kromer.balanceCache.get(transaction.to);
-        if (balanceCache == null) {
-            balVal = BigDecimal.valueOf(-1f);
-        } else {
-            if (balVal == null) {
-                balVal = BigDecimal.valueOf(-1f);
-            } else {
-                balVal = balVal.add(transaction.value);
-                Kromer.balanceCache.put(transaction.to, balVal);
-            }
+    public static void notifyTransfer(ServerPlayer player, Transaction transaction) {
+        BigDecimal cached = balanceCache.get(transaction.to);
+
+        if (cached != null) {
+            BigDecimal updated = cached.add(transaction.value);
+            balanceCache.put(transaction.to, updated);
+            sendTransferNotification(player, transaction, updated);
+            return;
         }
 
+        CompletableFuture
+                .supplyAsync(() -> GetAddress.execute(transaction.to), NETWORK_EXECUTOR)
+                .thenCompose(f -> f)
+                .whenComplete((b, ex) -> {
+                    BigDecimal resolved;
+                    if (ex != null || !(b instanceof Result.Ok<GetAddress.GetAddressBody> ok)) {
+                        LOGGER.error("notifyTransfer: failed to resolve balance for {}", transaction.to, ex);
+                        resolved = BigDecimal.valueOf(-1);
+                    } else {
+                        resolved = ok.value().address.balance;
+                        balanceCache.put(transaction.to, resolved);
+                    }
+                    sendTransferNotification(player, transaction, resolved);
+                });
+    }
+
+    private static void sendTransferNotification(ServerPlayer player, Transaction transaction, BigDecimal balVal) {
         ServerPlayNetworking.send(player, new TransactionPayload(transaction, balVal));
 
         var commonMeta = CommonMeta.fromString(transaction.metadata);
         if (commonMeta.keywordEntries.containsKey("error")) {
-            player.sendSystemMessage(
-                    Locale.parse(
-                            Locale.Messages.NOTIFY_TRANSFER_MESSAGE_ERROR,
-                            transaction.value,
-                            Map.of(
-                                    "sender", Component.literal(getNameFromWallet(transaction.from)),
-                                    "message", Component.literal(commonMeta.keywordEntries.get("error"))
-                            )
-                    )
-            );
+            player.sendSystemMessage(Locale.parse(Locale.Messages.NOTIFY_TRANSFER_MESSAGE_ERROR, transaction.value,
+                    Map.of("sender", Component.literal(getNameFromWallet(transaction.from)),
+                            "message", Component.literal(commonMeta.keywordEntries.get("error")))));
         } else if (commonMeta.keywordEntries.containsKey("message")) {
-            player.sendSystemMessage(
-                    Locale.parse(
-                            Locale.Messages.NOTIFY_TRANSFER_MESSAGE,
-                            transaction.value,
-                            Map.of(
-                                    "sender", Component.literal(getNameFromWallet(transaction.from)),
-                                    "message", Component.literal(commonMeta.keywordEntries.get("message"))
-                            )
-                    )
-            );
+            player.sendSystemMessage(Locale.parse(Locale.Messages.NOTIFY_TRANSFER_MESSAGE, transaction.value,
+                    Map.of("sender", Component.literal(getNameFromWallet(transaction.from)),
+                            "message", Component.literal(commonMeta.keywordEntries.get("message")))));
         } else {
-            player.sendSystemMessage(
-                    Locale.parse(
-                            Locale.Messages.NOTIFY_TRANSFER,
-                            transaction.value,
-                            Map.of("sender", Component.literal(getNameFromWallet(transaction.from)))
-                    )
-            );
+            player.sendSystemMessage(Locale.parse(Locale.Messages.NOTIFY_TRANSFER, transaction.value,
+                    Map.of("sender", Component.literal(getNameFromWallet(transaction.from)))));
         }
     }
 
